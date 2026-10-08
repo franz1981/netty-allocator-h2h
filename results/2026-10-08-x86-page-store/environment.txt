@@ -1,0 +1,10 @@
+openjdk version "25.0.3" 2026-04-21 LTS
+OpenJDK Runtime Environment Temurin-25.0.3+9 (build 25.0.3+9-LTS)
+OpenJDK 64-Bit Server VM Temurin-25.0.3+9 (build 25.0.3+9-LTS, mixed mode, sharing)
+7.1.13-100.fc43.x86_64
+always [madvise] never
+CPU(s):                                  32
+Model name:                              AMD Ryzen 9 7950X 16-Core Processor
+CPU(s) scaling MHz:                      50%
+NUMA node0 CPU(s):                       0-7,16-23
+Thu Oct  8 11:05:08 AM CEST 2026

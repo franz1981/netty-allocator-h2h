@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Allocator Matrix x86</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --ground: #f3f5f4; --panel: #ffffff; --ink: #18211e; --muted: #5b6a64; --rule: #d9e0dd;
+  --pooled: #4a7fcb; --adaptive: #1f9a62; --mmapoff: #1f9a62; --mimalloc: #d05a2a; --on: #18211e; --on-ink: #ffffff;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; --ground: #121715; --panel: #19201d; --ink: #e4ebe8;
+    --muted: #93a29c; --rule: #2b3531; --pooled: #7aa6e6; --adaptive: #4cc98f; --mmapoff: #4cc98f; --mimalloc: #f08a55;
+    --on: #e4ebe8; --on-ink: #121715; }
+}
+:root[data-theme="dark"] { color-scheme: dark; --ground: #121715; --panel: #19201d; --ink: #e4ebe8;
+  --muted: #93a29c; --rule: #2b3531; --pooled: #7aa6e6; --adaptive: #4cc98f; --mmapoff: #4cc98f; --mimalloc: #f08a55;
+  --on: #e4ebe8; --on-ink: #121715; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 20px; padding-block: 26px 48px; display: grid; gap: 20px; }
+h1 { font-size: 1.55rem; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+p { margin: 0; max-width: 90ch; }
+.muted { color: var(--muted); }
+code { font-family: var(--mono); font-size: 12.5px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; position: sticky; top: env(safe-area-inset-top, 0px);
+  background: var(--ground); padding-block: 8px; z-index: 2; }
+.pg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.pg button { font: 500 13px var(--sans); background: var(--panel); color: var(--muted); border: 0; padding: 6px 12px; cursor: pointer; }
+.pg button[aria-pressed="true"] { background: var(--on); color: var(--on-ink); }
+.pg button:focus-visible, .legend button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.legend button { font: 500 13px var(--sans); color: var(--ink); background: var(--panel); border: 1px solid var(--rule);
+  border-radius: 999px; padding: 4px 12px 4px 8px; display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
+.legend button[aria-pressed="false"] { opacity: .4; }
+.sw { width: 22px; border-top: 3px solid currentColor; display: inline-block; }
+.sw.dash { border-top-style: dashed; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 14px; }
+figure { margin: 0; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 12px; display: grid; gap: 6px; }
+figcaption { font-weight: 600; font-size: .95rem; }
+figcaption span { font-weight: 400; color: var(--muted); font-size: .82rem; }
+.canvas { position: relative; height: 280px; }
+.tablewrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+tr:last-child td { border-bottom: 0; }
+details { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 10px 14px; }
+summary { cursor: pointer; font-weight: 600; }
+details ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header style="display:grid;gap:6px">
+    <h1>Netty page store vs mimalloc port vs pooled, x86</h1>
+    <p class="muted">lao's full matrix (<code>ByteBufAllocatorAllocPatternBenchmark</code>, 32 threads, 2 forks, 10&times;1 s warmup, 10&times;1 s measurement) on Netty
+      <a href="https://github.com/franz1981/netty/tree/adaptive-page-store">adaptive-page-store</a> @ 34eff301a2, mimalloc port 1.2.4-SNAPSHOT (neoionet/netty-allocator 082a6d9). Ryzen 9 7950X, NUMA node 0 (8 cores / 16 threads), 2.3 GHz, JDK 25.0.3, 2026-10-08.</p>
+  </header>
+
+  <div class="controls">
+    <div class="pg" id="g-thr" role="group" aria-label="Threads"><button data-v="eventloop" aria-pressed="true">event loop</button><button data-v="platform" aria-pressed="false">platform</button></div>
+    <div class="pg" id="g-method" role="group" aria-label="Memory"><button data-v="direct" aria-pressed="true">direct</button><button data-v="heap" aria-pressed="false">heap</button></div>
+    <div class="pg" id="g-pattern" role="group" aria-label="Pattern"><button data-v="SOCKET_PROXY" aria-pressed="true">SOCKET_PROXY</button><button data-v="API_GATEWAY" aria-pressed="false">API_GATEWAY</button><button data-v="E_COMMERCE" aria-pressed="false">E_COMMERCE</button></div>
+    <div class="pg" id="g-rw" role="group" aria-label="Read-write"><button data-v="true" aria-pressed="true">read-write on</button><button data-v="false" aria-pressed="false">off</button></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="charts">
+    <figure><figcaption>Latency <span>ns/op, lower is better</span></figcaption><div class="canvas"><canvas id="c-ns"></canvas></div></figure>
+    <figure><figcaption>RSS <span>MiB, peak at the last iteration, mean of 2 forks</span></figcaption><div class="canvas"><canvas id="c-rss"></canvas></div></figure>
+    <figure><figcaption>Allocator used memory <span>MiB, as the harness reports it</span></figcaption><div class="canvas"><canvas id="c-used"></canvas></div></figure>
+  </div>
+
+  <div class="tablewrap"><table id="tbl"></table></div>
+
+  <details>
+    <summary>How it ran</summary>
+    <ul>
+      <li>JVM flags (harness defaults + ours): <code>-server -dsa -da -XX:InitialRAMPercentage=40.0 -XX:MaxRAMPercentage=40.0 -Dio.netty.leakDetection.level=disabled -XX:MaxRAM=60g --enable-native-access=ALL-UNNAMED -XX:+ExitOnOutOfMemoryError</code>, plus <code>-prof gc</code>; platform threads: <code>-Djmh.executor=PLATFORM</code>.</li>
+      <li>Page store, mmap off: <code>-Dio.netty.allocator.segmentRegionSize=0</code> (malloc'd 4 MiB blocks), direct only: heap does not use mmap.</li>
+      <li>JDK 25 because mmap needs JDK 22+ with native access; lao's published ARM run used JDK 21 and Netty 82bd38c.</li>
+      <li><code>numactl --cpunodebind=0 --preferred=0</code>, CPU ceiling 2300 MHz, THP <code>madvise</code>, kernel 7.1.13.</li>
+      <li>Raw data: <code>JMH-*.data</code> (text, with RSS lines) and <code>JMH-*.json</code> next to this page; <code>cells.csv</code> is what the charts show.</li>
+    </ul>
+  </details>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const D = __DATA__; // [threads, method, live, alloc, rw, pattern, ns, rss, used]
+const BUFS = [128, 1024, 4096, 8192, 16384, 32768, 65536];
+const AL = [
+  { k: "POOLED", label: "pooled", c: "--pooled", dash: [] },
+  { k: "ADAPTIVE", label: "page store (mmap)", c: "--adaptive", dash: [] },
+  { k: "ADAPTIVE_MMAP_OFF", label: "page store (mmap off)", c: "--mmapoff", dash: [6, 4] },
+  { k: "MIMALLOC", label: "mimalloc port", c: "--mimalloc", dash: [] },
+];
+const st = { thr: "eventloop", method: "direct", pattern: "SOCKET_PROXY", rw: "true" };
+const shown = new Set(AL.map(a => a.k));
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const val = (a, live, col) => {
+  const r = D.find(x => x[0] === st.thr && x[1] === st.method && x[2] === live && x[3] === a && x[4] === st.rw && x[5] === st.pattern);
+  return r ? r[col] : null;
+};
+const charts = {};
+function datasets(col) {
+  return AL.filter(a => shown.has(a.k) && !(a.k === "ADAPTIVE_MMAP_OFF" && st.method === "heap")).map(a => ({
+    label: a.label, data: BUFS.map(b => val(a.k, b, col)), borderColor: css(a.c), backgroundColor: css(a.c),
+    borderDash: a.dash, borderWidth: 2, pointRadius: 3, tension: 0, spanGaps: true }));
+}
+function options(unit) {
+  const ink = css("--muted"), grid = css("--rule");
+  return { responsive: true, maintainAspectRatio: false, animation: { duration: 200 },
+    interaction: { mode: "index", intersect: false },
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y == null ? "n/a" : Math.round(c.parsed.y)} ${unit}` } } },
+    scales: { x: { title: { display: true, text: "live buffers per thread", color: ink }, ticks: { color: ink }, grid: { color: grid } },
+              y: { beginAtZero: true, title: { display: true, text: unit, color: ink }, ticks: { color: ink }, grid: { color: grid } } } };
+}
+function table() {
+  const al = AL.filter(a => !(a.k === "ADAPTIVE_MMAP_OFF" && st.method === "heap"));
+  let h = "<thead><tr><th>live</th>" + al.map(a => `<th>${a.label} ns</th>`).join("") +
+          al.map(a => `<th>${a.label} RSS</th>`).join("") + "</tr></thead><tbody>";
+  for (const b of BUFS) {
+    h += `<tr><td>${b}</td>` + al.map(a => `<td>${val(a.k, b, 6) ?? ""}</td>`).join("") +
+         al.map(a => `<td>${val(a.k, b, 7) ?? ""}</td>`).join("") + "</tr>";
+  }
+  document.getElementById("tbl").innerHTML = h + "</tbody>";
+}
+function draw() {
+  const spec = [["c-ns", 6, "ns/op"], ["c-rss", 7, "MiB"], ["c-used", 8, "MiB"]];
+  for (const [id, col, unit] of spec) {
+    if (charts[id]) charts[id].destroy();
+    charts[id] = new Chart(document.getElementById(id), { type: "line", data: { labels: BUFS.map(String), datasets: datasets(col) }, options: options(unit) });
+  }
+  table();
+}
+for (const g of ["thr", "method", "pattern", "rw"]) {
+  const el = document.getElementById("g-" + g);
+  el.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    el.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    st[g] = b.dataset.v; draw();
+  });
+}
+const legend = document.getElementById("legend");
+for (const a of AL) {
+  const b = document.createElement("button");
+  b.setAttribute("aria-pressed", "true");
+  b.innerHTML = `<span class="sw${a.dash.length ? " dash" : ""}" style="color:var(${a.c})"></span>${a.label}`;
+  b.addEventListener("click", () => {
+    if (shown.has(a.k)) { if (shown.size > 1) shown.delete(a.k); } else shown.add(a.k);
+    b.setAttribute("aria-pressed", shown.has(a.k)); draw();
+  });
+  legend.appendChild(b);
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+draw();
+</script>
+</body>
+</html>
