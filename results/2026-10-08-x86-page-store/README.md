@@ -1,6 +1,6 @@
 # lao's full matrix on the page store, x86, 2026-10-08
 
-Charts: [index.html](https://franz1981.github.io/netty-allocator-h2h/results/2026-10-08-x86-page-store/index.html).
+Charts in lao's report format: [benchmark.html](https://franz1981.github.io/netty-allocator-h2h/results/2026-10-08-x86-page-store/benchmark.html) ([specification](specification.md)); our own view: [index.html](https://franz1981.github.io/netty-allocator-h2h/results/2026-10-08-x86-page-store/index.html).
 Same matrix as lao's 1.2.4-snap ARM report (netty/netty discussion #17485): `ByteBufAllocatorAllocPatternBenchmark`,
 all params (3 patterns x 7 live counts x read-write on/off x direct/heap x POOLED/ADAPTIVE/MIMALLOC), 32 threads,
 2 forks, 10x1 s warmup + 10x1 s measurement, event-loop and platform threads; plus ADAPTIVE direct with mmap off.

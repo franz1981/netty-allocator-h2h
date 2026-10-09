@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<!-- Format: neoionet/netty-allocator-benchmark-report 1.2.4-snap/benchmark.html (Apache-2.0); data: Netty franz1981/netty adaptive-page-store @ 34eff301a2, x86, 2026-10-08, see specification.md -->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Netty Allocators Benchmark</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  display: flex;
+  height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #e2e8f0;
+}
+
+nav {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid #252830;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 12px;
+  gap: 4px;
+}
+
+.logo {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #16191f;
+  padding: 0 4px 16px;
+  border-bottom: 1px solid #252830;
+  margin-bottom: 8px;
+}
+
+.logo span {
+  display: block;
+  font-size: 12px;
+  font-weight: 450;
+  letter-spacing: 0.05em;
+  color: #475569;
+  margin-top: 16px;
+}
+
+.nav-btn {
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 16px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1.4;
+}
+
+.nav-btn:hover {
+  background: #1e2230;
+  color: #cbd5e1;
+}
+
+.nav-btn.active {
+  background: #1e2a40;
+  color: #ffffff;
+}
+
+.nav-btn::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 8px;
+  opacity: 0.6;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #ffffff;
+}
+
+iframe {
+  width: 100%;
+  flex: 1;
+  border: none;
+}
+
+#loading {
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(3px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  gap: 14px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.spinner {
+  width: 42px;
+  height: 42px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <span>loading…</span>
+</div>
+<nav>
+  <div class="logo">Allocator Bench<span>32 threads · 16 cores</span></div>
+
+  <button class="nav-btn active" onclick="show(this,2)">Eventloop on x86</button>
+  <!-- <button class="nav-btn" onclick="show(this,0)">Eventloop on ARM</button> -->
+  <button class="nav-btn" onclick="show(this,3)">Platform on x86</button>
+  <!-- <button class="nav-btn" onclick="show(this,1)">Platform on ARM</button> -->
+</nav>
+
+<main>
+  <iframe id="f0" data-srcdoc='<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:0 12px;font-family:system-ui,sans-serif}</style></head><body>
+<style>
+.ctrl-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1rem;align-items:flex-end}
+
+.pg{display:flex;border:0.5px solid var(--color-border-secondary, #d1d5db);border-radius:20px;overflow:hidden}
+.pill{padding:5px 14px;font-size:13px;cursor:pointer;background:transparent;border:none;color:var(--color-text-secondary, #4b5563)}
+
+.pill.on{background:var(--color-text-primary, #111827);color:var(--color-background-primary, #ffffff)}
+.slabel{font-size:11px;font-weight:500;color:var(--color-text-tertiary, #6b7280);text-transform:uppercase;margin-bottom:5px}
+.chart-title{font-size:13px;font-weight:500;color:var(--color-text-secondary, #4b5563);margin:1rem 0 4px}
+.cw{position:relative;width:100%;height:260px}
+.leg{display:flex;gap:16px;font-size:12px;color:var(--color-text-secondary, #4b5563);margin-bottom:.5rem}
+.leg span{display:flex;align-items:center;gap:5px}
+.lsq{display:inline-block;width:20px;height:3px;border-radius:2px}
+.warn{background:var(--color-background-warning, #fef08a);border:0.5px solid var(--color-border-warning, #facc15);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--color-text-warning, #854d0e);margin-bottom:1rem;display:none}
+</style>
+
+<div style="padding:18px 0 0">
+<h4 class="sr-only">32 event loop threads on ARM with 16 cores</h4>
+<hr>
+<div class="ctrl-row">
+  <div><div class="slabel">allocation</div>
+    <div class="pg" id="gm">
+      <button class="pill on" data-v="direct">direct</button>
+      <button class="pill" data-v="heap">heap</button>
+    </div></div>
+  <div><div class="slabel">pattern</div>
+    <div class="pg" id="gp">
+      <button class="pill on" data-v="SOCKET_PROXY">SOCKET_PROXY</button>
+      <button class="pill" data-v="API_GATEWAY">API_GATEWAY</button>
+      <button class="pill" data-v="E_COMMERCE">E_COMMERCE</button>
+    </div></div>
+  <div><div class="slabel">read/write</div>
+    <div class="pg" id="gr">
+      <button class="pill on" data-v="true">on</button>
+      <button class="pill" data-v="false">off</button>
+    </div></div>
+</div>
+
+<div class="leg">
+  <span><span class="lsq" style="background:#4a7fcb"></span>POOLED</span>
+  <span><span class="lsq" style="background:#2aaa6e"></span>ADAPTIVE</span>
+  <span><span class="lsq" style="background:#d05a2a"></span>MIMALLOC</span>
+</div>
+
+<div class="chart-title">Latency (ns/op)&nbsp;&nbsp;<span style="font-weight:400;color:var(--color-text-tertiary)">the lower the better</span></div>
+<div class="cw"><canvas id="cL" role="img" aria-label="Allocation latency line chart"></canvas></div>
+
+<div class="chart-title">RSS (MiB)</div>
+<div class="cw"><canvas id="cR" role="img" aria-label="RSS memory line chart"></canvas></div>
+
+<div class="chart-title">allocator used memory (MiB)&nbsp;&nbsp;<span style="font-weight:400;color:var(--color-text-tertiary)">allocator.usedDirectMemory() or allocator.usedHeapMemory()</span></div>
+<div class="cw"><canvas id="cNew" role="img" aria-label="UsedMemory chart"></canvas></div>
+
+</div>
+
+<script>
+const D=[["direct",128,"POOLED","false","SOCKET_PROXY",306,430,128],["direct",128,"POOLED","false","API_GATEWAY",220,951,128],["direct",128,"POOLED","false","E_COMMERCE",309,1982,128],["direct",128,"POOLED","true","SOCKET_PROXY",263,431,128],["direct",128,"POOLED","true","API_GATEWAY",334,836,128],["direct",128,"POOLED","true","E_COMMERCE",332,1979,128],["direct",128,"ADAPTIVE","false","SOCKET_PROXY",72,345,113],["direct",128,"ADAPTIVE","false","API_GATEWAY",66,542,173],["direct",128,"ADAPTIVE","false","E_COMMERCE",74,2067,223],["direct",128,"ADAPTIVE","true","SOCKET_PROXY",81,344,113],["direct",128,"ADAPTIVE","true","API_GATEWAY",74,534,173],["direct",128,"ADAPTIVE","true","E_COMMERCE",73,2064,218],["direct",128,"MIMALLOC","false","SOCKET_PROXY",75,364,128],["direct",128,"MIMALLOC","false","API_GATEWAY",94,626,384],["direct",128,"MIMALLOC","false","E_COMMERCE",84,2163,384],["direct",128,"MIMALLOC","true","SOCKET_PROXY",83,363,128],["direct",128,"MIMALLOC","true","API_GATEWAY",97,619,384],["direct",128,"MIMALLOC","true","E_COMMERCE",107,2158,384],["direct",1024,"POOLED","false","SOCKET_PROXY",272,691,256],["direct",1024,"POOLED","false","API_GATEWAY",285,1470,256],["direct",1024,"POOLED","false","E_COMMERCE",323,2432,384],["direct",1024,"POOLED","true","SOCKET_PROXY",393,658,256],["direct",1024,"POOLED","true","API_GATEWAY",222,1618,256],["direct",1024,"POOLED","true","E_COMMERCE",314,2439,384],["direct",1024,"ADAPTIVE","false","SOCKET_PROXY",70,649,137],["direct",1024,"ADAPTIVE","false","API_GATEWAY",96,1424,230],["direct",1024,"ADAPTIVE","false","E_COMMERCE",116,2443,241],["direct",1024,"ADAPTIVE","true","SOCKET_PROXY",79,622,144],["direct",1024,"ADAPTIVE","true","API_GATEWAY",101,1392,233],["direct",1024,"ADAPTIVE","true","E_COMMERCE",91,2447,259],["direct",1024,"MIMALLOC","false","SOCKET_PROXY",95,489,256],["direct",1024,"MIMALLOC","false","API_GATEWAY",104,629,384],["direct",1024,"MIMALLOC","false","E_COMMERCE",99,2280,512],["direct",1024,"MIMALLOC","true","SOCKET_PROXY",104,490,256],["direct",1024,"MIMALLOC","true","API_GATEWAY",112,624,384],["direct",1024,"MIMALLOC","true","E_COMMERCE",91,2285,512],["direct",4096,"POOLED","false","SOCKET_PROXY",303,1098,512],["direct",4096,"POOLED","false","API_GATEWAY",327,2072,768],["direct",4096,"POOLED","false","E_COMMERCE",364,3142,1024],["direct",4096,"POOLED","true","SOCKET_PROXY",552,1009,512],["direct",4096,"POOLED","true","API_GATEWAY",506,1739,768],["direct",4096,"POOLED","true","E_COMMERCE",388,3148,1024],["direct",4096,"ADAPTIVE","false","SOCKET_PROXY",85,1029,416],["direct",4096,"ADAPTIVE","false","API_GATEWAY",102,1649,696],["direct",4096,"ADAPTIVE","false","E_COMMERCE",97,2944,751],["direct",4096,"ADAPTIVE","true","SOCKET_PROXY",94,1014,420],["direct",4096,"ADAPTIVE","true","API_GATEWAY",118,1577,677],["direct",4096,"ADAPTIVE","true","E_COMMERCE",144,2952,708],["direct",4096,"MIMALLOC","false","SOCKET_PROXY",89,875,512],["direct",4096,"MIMALLOC","false","API_GATEWAY",120,1010,768],["direct",4096,"MIMALLOC","false","E_COMMERCE",106,2810,1024],["direct",4096,"MIMALLOC","true","SOCKET_PROXY",92,886,512],["direct",4096,"MIMALLOC","true","API_GATEWAY",115,1016,768],["direct",4096,"MIMALLOC","true","E_COMMERCE",100,2805,1024],["direct",8192,"POOLED","false","SOCKET_PROXY",265,1602,896],["direct",8192,"POOLED","false","API_GATEWAY",272,2815,1408],["direct",8192,"POOLED","false","E_COMMERCE",287,3939,1730],["direct",8192,"POOLED","true","SOCKET_PROXY",422,1520,896],["direct",8192,"POOLED","true","API_GATEWAY",529,2499,1408],["direct",8192,"POOLED","true","E_COMMERCE",389,3927,1714],["direct",8192,"ADAPTIVE","false","SOCKET_PROXY",127,1197,742],["direct",8192,"ADAPTIVE","false","API_GATEWAY",132,2040,1260],["direct",8192,"ADAPTIVE","false","E_COMMERCE",147,3657,1368],["direct",8192,"ADAPTIVE","true","SOCKET_PROXY",144,1182,739],["direct",8192,"ADAPTIVE","true","API_GATEWAY",186,1907,1264],["direct",8192,"ADAPTIVE","true","E_COMMERCE",128,3657,1384],["direct",8192,"MIMALLOC","false","SOCKET_PROXY",147,1271,1024],["direct",8192,"MIMALLOC","false","API_GATEWAY",127,1515,1280],["direct",8192,"MIMALLOC","false","E_COMMERCE",101,3438,1664],["direct",8192,"MIMALLOC","true","SOCKET_PROXY",143,1269,1024],["direct",8192,"MIMALLOC","true","API_GATEWAY",144,1526,1280],["direct",8192,"MIMALLOC","true","E_COMMERCE",126,3434,1664],["direct",16384,"POOLED","false","SOCKET_PROXY",487,2622,1792],["direct",16384,"POOLED","false","API_GATEWAY",410,3888,2432],["direct",16384,"POOLED","false","E_COMMERCE",503,5312,3126],["direct",16384,"POOLED","true","SOCKET_PROXY",578,2594,1792],["direct",16384,"POOLED","true","API_GATEWAY",704,3587,2432],["direct",16384,"POOLED","true","E_COMMERCE",652,5244,3062],["direct",16384,"ADAPTIVE","false","SOCKET_PROXY",115,1895,1408],["direct",16384,"ADAPTIVE","false","API_GATEWAY",144,3016,2363],["direct",16384,"ADAPTIVE","false","E_COMMERCE",140,4980,2605],["direct",16384,"ADAPTIVE","true","SOCKET_PROXY",226,1835,1401],["direct",16384,"ADAPTIVE","true","API_GATEWAY",292,2895,2361],["direct",16384,"ADAPTIVE","true","E_COMMERCE",262,4799,2597],["direct",16384,"MIMALLOC","false","SOCKET_PROXY",215,2101,1792],["direct",16384,"MIMALLOC","false","API_GATEWAY",235,2611,2304],["direct",16384,"MIMALLOC","false","E_COMMERCE",181,4725,2944],["direct",16384,"MIMALLOC","true","SOCKET_PROXY",219,2100,1792],["direct",16384,"MIMALLOC","true","API_GATEWAY",267,2611,2304],["direct",16384,"MIMALLOC","true","E_COMMERCE",199,4725,2944],["direct",32768,"POOLED","false","SOCKET_PROXY",496,4548,3200],["direct",32768,"POOLED","false","API_GATEWAY",501,6270,4608],["direct",32768,"POOLED","false","E_COMMERCE",681,8126,5884],["direct",32768,"POOLED","true","SOCKET_PROXY",719,4419,3200],["direct",32768,"POOLED","true","API_GATEWAY",713,6261,4608],["direct",32768,"POOLED","true","E_COMMERCE",972,8066,5788],["direct",32768,"ADAPTIVE","false","SOCKET_PROXY",215,3156,2711],["direct",32768,"ADAPTIVE","false","API_GATEWAY",248,5158,4604],["direct",32768,"ADAPTIVE","false","E_COMMERCE",246,7564,5061],["direct",32768,"ADAPTIVE","true","SOCKET_PROXY",371,3153,2713],["direct",32768,"ADAPTIVE","true","API_GATEWAY",455,5143,4599],["direct",32768,"ADAPTIVE","true","E_COMMERCE",394,7338,5059],["direct",32768,"MIMALLOC","false","SOCKET_PROXY",362,3635,3328],["direct",32768,"MIMALLOC","false","API_GATEWAY",392,4412,4096],["direct",32768,"MIMALLOC","false","E_COMMERCE",339,7222,5376],["direct",32768,"MIMALLOC","true","SOCKET_PROXY",351,3644,3328],["direct",32768,"MIMALLOC","true","API_GATEWAY",424,4410,4096],["direct",32768,"MIMALLOC","true","E_COMMERCE",379,7218,5376],["direct",65536,"POOLED","false","SOCKET_PROXY",542,7945,6272],["direct",65536,"POOLED","false","API_GATEWAY",731,11018,9088],["direct",65536,"POOLED","false","E_COMMERCE",918,13978,11376],["direct",65536,"POOLED","true","SOCKET_PROXY",711,7957,6272],["direct",65536,"POOLED","true","API_GATEWAY",822,11009,9088],["direct",65536,"POOLED","true","E_COMMERCE",992,13966,11348],["direct",65536,"ADAPTIVE","false","SOCKET_PROXY",305,5917,5313],["direct",65536,"ADAPTIVE","false","API_GATEWAY",349,9751,9060],["direct",65536,"ADAPTIVE","false","E_COMMERCE",341,12589,9998],["direct",65536,"ADAPTIVE","true","SOCKET_PROXY",413,5921,5311],["direct",65536,"ADAPTIVE","true","API_GATEWAY",480,9745,9059],["direct",65536,"ADAPTIVE","true","E_COMMERCE",451,12569,9961],["direct",65536,"MIMALLOC","false","SOCKET_PROXY",471,6837,6400],["direct",65536,"MIMALLOC","false","API_GATEWAY",507,8252,7808],["direct",65536,"MIMALLOC","false","E_COMMERCE",443,12350,10368],["direct",65536,"MIMALLOC","true","SOCKET_PROXY",485,6837,6400],["direct",65536,"MIMALLOC","true","API_GATEWAY",516,8249,7808],["direct",65536,"MIMALLOC","true","E_COMMERCE",487,12343,10368],["heap",128,"POOLED","false","SOCKET_PROXY",346,434,128],["heap",128,"POOLED","false","API_GATEWAY",219,962,128],["heap",128,"POOLED","false","E_COMMERCE",281,2086,128],["heap",128,"POOLED","true","SOCKET_PROXY",304,434,128],["heap",128,"POOLED","true","API_GATEWAY",367,785,128],["heap",128,"POOLED","true","E_COMMERCE",291,1981,128],["heap",128,"ADAPTIVE","false","SOCKET_PROXY",62,359,113],["heap",128,"ADAPTIVE","false","API_GATEWAY",71,560,173],["heap",128,"ADAPTIVE","false","E_COMMERCE",80,2268,204],["heap",128,"ADAPTIVE","true","SOCKET_PROXY",70,359,113],["heap",128,"ADAPTIVE","true","API_GATEWAY",77,559,173],["heap",128,"ADAPTIVE","true","E_COMMERCE",85,2331,228],["heap",128,"MIMALLOC","false","SOCKET_PROXY",75,373,128],["heap",128,"MIMALLOC","false","API_GATEWAY",92,668,384],["heap",128,"MIMALLOC","false","E_COMMERCE",136,2336,384],["heap",128,"MIMALLOC","true","SOCKET_PROXY",82,367,128],["heap",128,"MIMALLOC","true","API_GATEWAY",125,665,384],["heap",128,"MIMALLOC","true","E_COMMERCE",138,2352,384],["heap",1024,"POOLED","false","SOCKET_PROXY",371,670,256],["heap",1024,"POOLED","false","API_GATEWAY",366,1474,256],["heap",1024,"POOLED","false","E_COMMERCE",412,2483,384],["heap",1024,"POOLED","true","SOCKET_PROXY",350,679,256],["heap",1024,"POOLED","true","API_GATEWAY",335,1542,256],["heap",1024,"POOLED","true","E_COMMERCE",451,2420,384],["heap",1024,"ADAPTIVE","false","SOCKET_PROXY",79,615,133],["heap",1024,"ADAPTIVE","false","API_GATEWAY",101,1651,264],["heap",1024,"ADAPTIVE","false","E_COMMERCE",167,2350,238],["heap",1024,"ADAPTIVE","true","SOCKET_PROXY",86,615,141],["heap",1024,"ADAPTIVE","true","API_GATEWAY",109,1641,245],["heap",1024,"ADAPTIVE","true","E_COMMERCE",108,2356,257],["heap",1024,"MIMALLOC","false","SOCKET_PROXY",100,508,256],["heap",1024,"MIMALLOC","false","API_GATEWAY",109,672,384],["heap",1024,"MIMALLOC","false","E_COMMERCE",90,2266,512],["heap",1024,"MIMALLOC","true","SOCKET_PROXY",108,509,256],["heap",1024,"MIMALLOC","true","API_GATEWAY",112,675,384],["heap",1024,"MIMALLOC","true","E_COMMERCE",104,2303,512],["heap",4096,"POOLED","false","SOCKET_PROXY",306,1137,512],["heap",4096,"POOLED","false","API_GATEWAY",314,2373,768],["heap",4096,"POOLED","false","E_COMMERCE",414,3564,1024],["heap",4096,"POOLED","true","SOCKET_PROXY",425,1090,512],["heap",4096,"POOLED","true","API_GATEWAY",340,2360,768],["heap",4096,"POOLED","true","E_COMMERCE",414,3482,1024],["heap",4096,"ADAPTIVE","false","SOCKET_PROXY",121,936,420],["heap",4096,"ADAPTIVE","false","API_GATEWAY",140,2092,700],["heap",4096,"ADAPTIVE","false","E_COMMERCE",157,2730,676],["heap",4096,"ADAPTIVE","true","SOCKET_PROXY",111,943,418],["heap",4096,"ADAPTIVE","true","API_GATEWAY",142,2094,691],["heap",4096,"ADAPTIVE","true","E_COMMERCE",174,2699,676],["heap",4096,"MIMALLOC","false","SOCKET_PROXY",102,976,512],["heap",4096,"MIMALLOC","false","API_GATEWAY",115,1122,768],["heap",4096,"MIMALLOC","false","E_COMMERCE",130,3212,1024],["heap",4096,"MIMALLOC","true","SOCKET_PROXY",109,965,512],["heap",4096,"MIMALLOC","true","API_GATEWAY",114,1120,768],["heap",4096,"MIMALLOC","true","E_COMMERCE",177,3240,1024],["heap",8192,"POOLED","false","SOCKET_PROXY",419,2369,896],["heap",8192,"POOLED","false","API_GATEWAY",447,3199,1408],["heap",8192,"POOLED","false","E_COMMERCE",453,4366,1704],["heap",8192,"POOLED","true","SOCKET_PROXY",456,2369,896],["heap",8192,"POOLED","true","API_GATEWAY",446,3236,1408],["heap",8192,"POOLED","true","E_COMMERCE",666,4398,1708],["heap",8192,"ADAPTIVE","false","SOCKET_PROXY",103,1220,734],["heap",8192,"ADAPTIVE","false","API_GATEWAY",177,2475,1263],["heap",8192,"ADAPTIVE","false","E_COMMERCE",134,3496,1381],["heap",8192,"ADAPTIVE","true","SOCKET_PROXY",162,1165,740],["heap",8192,"ADAPTIVE","true","API_GATEWAY",189,2520,1262],["heap",8192,"ADAPTIVE","true","E_COMMERCE",157,3536,1377],["heap",8192,"MIMALLOC","false","SOCKET_PROXY",178,2298,1024],["heap",8192,"MIMALLOC","false","API_GATEWAY",241,2307,1280],["heap",8192,"MIMALLOC","false","E_COMMERCE",137,3208,1664],["heap",8192,"MIMALLOC","true","SOCKET_PROXY",211,2300,1024],["heap",8192,"MIMALLOC","true","API_GATEWAY",209,2312,1280],["heap",8192,"MIMALLOC","true","E_COMMERCE",139,3217,1664],["heap",16384,"POOLED","false","SOCKET_PROXY",348,3519,1792],["heap",16384,"POOLED","false","API_GATEWAY",517,4355,2432],["heap",16384,"POOLED","false","E_COMMERCE",431,6281,3164],["heap",16384,"POOLED","true","SOCKET_PROXY",572,3434,1792],["heap",16384,"POOLED","true","API_GATEWAY",571,4375,2432],["heap",16384,"POOLED","true","E_COMMERCE",582,5797,3058],["heap",16384,"ADAPTIVE","false","SOCKET_PROXY",142,2513,1398],["heap",16384,"ADAPTIVE","false","API_GATEWAY",194,3652,2363],["heap",16384,"ADAPTIVE","false","E_COMMERCE",183,4597,2609],["heap",16384,"ADAPTIVE","true","SOCKET_PROXY",375,2450,1405],["heap",16384,"ADAPTIVE","true","API_GATEWAY",386,3639,2362],["heap",16384,"ADAPTIVE","true","E_COMMERCE",383,4634,2590],["heap",16384,"MIMALLOC","false","SOCKET_PROXY",510,3249,1792],["heap",16384,"MIMALLOC","false","API_GATEWAY",492,3294,2304],["heap",16384,"MIMALLOC","false","E_COMMERCE",280,5186,2944],["heap",16384,"MIMALLOC","true","SOCKET_PROXY",416,3260,1792],["heap",16384,"MIMALLOC","true","API_GATEWAY",462,3301,2304],["heap",16384,"MIMALLOC","true","E_COMMERCE",321,5156,2944],["heap",32768,"POOLED","false","SOCKET_PROXY",512,5569,3200],["heap",32768,"POOLED","false","API_GATEWAY",641,7437,4608],["heap",32768,"POOLED","false","E_COMMERCE",809,9619,5840],["heap",32768,"POOLED","true","SOCKET_PROXY",695,5523,3200],["heap",32768,"POOLED","true","API_GATEWAY",899,7489,4608],["heap",32768,"POOLED","true","E_COMMERCE",823,9518,5814],["heap",32768,"ADAPTIVE","false","SOCKET_PROXY",275,3698,2715],["heap",32768,"ADAPTIVE","false","API_GATEWAY",448,5957,4599],["heap",32768,"ADAPTIVE","false","E_COMMERCE",346,6880,5081],["heap",32768,"ADAPTIVE","true","SOCKET_PROXY",390,3700,2712],["heap",32768,"ADAPTIVE","true","API_GATEWAY",440,5968,4602],["heap",32768,"ADAPTIVE","true","E_COMMERCE",465,6943,5059],["heap",32768,"MIMALLOC","false","SOCKET_PROXY",615,5207,3328],["heap",32768,"MIMALLOC","false","API_GATEWAY",689,5264,4096],["heap",32768,"MIMALLOC","false","E_COMMERCE",612,8084,5376],["heap",32768,"MIMALLOC","true","SOCKET_PROXY",687,4770,3328],["heap",32768,"MIMALLOC","true","API_GATEWAY",633,5696,4096],["heap",32768,"MIMALLOC","true","E_COMMERCE",558,8062,5376],["heap",65536,"POOLED","false","SOCKET_PROXY",552,9611,6272],["heap",65536,"POOLED","false","API_GATEWAY",806,14003,9088],["heap",65536,"POOLED","false","E_COMMERCE",798,17092,11360],["heap",65536,"POOLED","true","SOCKET_PROXY",712,9546,6272],["heap",65536,"POOLED","true","API_GATEWAY",926,13969,9088],["heap",65536,"POOLED","true","E_COMMERCE",1014,17155,11282],["heap",65536,"ADAPTIVE","false","SOCKET_PROXY",404,7110,5313],["heap",65536,"ADAPTIVE","false","API_GATEWAY",392,10588,9067],["heap",65536,"ADAPTIVE","false","E_COMMERCE",432,12658,9969],["heap",65536,"ADAPTIVE","true","SOCKET_PROXY",421,7121,5309],["heap",65536,"ADAPTIVE","true","API_GATEWAY",501,10549,9065],["heap",65536,"ADAPTIVE","true","E_COMMERCE",434,12618,9964],["heap",65536,"MIMALLOC","false","SOCKET_PROXY",656,8191,6400],["heap",65536,"MIMALLOC","false","API_GATEWAY",843,10168,7808],["heap",65536,"MIMALLOC","false","E_COMMERCE",565,14356,10362],["heap",65536,"MIMALLOC","true","SOCKET_PROXY",741,8189,6400],["heap",65536,"MIMALLOC","true","API_GATEWAY",690,10147,7808],["heap",65536,"MIMALLOC","true","E_COMMERCE",582,14357,10342]];
+
+
+const BUFS=[128,1024,4096,8192,16384,32768,65536];
+const AL=["POOLED","ADAPTIVE","MIMALLOC"];
+const CLR={"POOLED":"#4a7fcb","ADAPTIVE":"#2aaa6e","MIMALLOC":"#d05a2a"};
+let st={method:"direct",pattern:"SOCKET_PROXY",rw:"true"};
+let cL,cR,cNew;
+
+function rows(){return D.filter(r=>r[0]===st.method&&r[3]===st.rw&&r[4]===st.pattern);}
+function ds(col){
+  return AL.map(a=>{
+    const sub=rows().filter(r=>r[2]===a);
+    return{label:a,data:BUFS.map(b=>{const r=sub.find(x=>x[1]===b);return r?r[col]:null;}),
+      borderColor:CLR[a],backgroundColor:CLR[a]+"22",borderWidth:2,
+    };
+  });
+}
+function opts(ytitle){
+  return{responsive:true,maintainAspectRatio:false,animation:{duration:300},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y!=null?Math.round(c.parsed.y):"n/a"}`}}},
+    scales:{x:{grid:{color:"rgba(128,128,128,.12)"},ticks:{font:{size:11}},title:{display:true,text:"Live buffers",font:{size:11}}},
+            y:{grid:{color:"rgba(128,128,128,.12)"},ticks:{font:{size:11}},title:{display:true,text:ytitle,font:{size:11}}}}};
+}
+function draw(){
+  const lData={labels:BUFS.map(String),datasets:ds(5)};
+  const rData={labels:BUFS.map(String),datasets:ds(6)};
+  const nData={labels:BUFS.map(String),datasets:ds(7)};
+  if(cL){cL.data=lData;cL.update();}
+  if(cR){cR.data=rData;cR.update();}
+  if(cNew){cNew.data=nData;cNew.update();} 
+}
+
+document.querySelectorAll(".pg").forEach(g=>{
+  g.addEventListener("click",e=>{
+    const b=e.target.closest(".pill");if(!b)return;
+    g.querySelectorAll(".pill").forEach(p=>p.classList.remove("on"));
+    b.classList.add("on");
+    const id=g.id;
+    if(id==="gm")st.method=b.dataset.v;
+    if(id==="gp")st.pattern=b.dataset.v;
+    if(id==="gr")st.rw=b.dataset.v;
+    draw();
+  });
+});
+
+function loadChartJS(cb){
+  const CDNS=[
+    "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+  ];
+  let done=false;
+  CDNS.forEach(url=>{
+    const s=document.createElement("script");
+    s.src=url;
+    s.onload=()=>{ if(!done){ done=true; cb(); } };
+    document.head.appendChild(s);
+  });
+}
+
+loadChartJS(function(){
+  cL=new Chart(document.getElementById("cL"),{type:"line",data:{labels:BUFS.map(String),datasets:ds(5)},options:opts("ns/op")});
+  cR=new Chart(document.getElementById("cR"),{type:"line",data:{labels:BUFS.map(String),datasets:ds(6)},options:opts("MiB")});
+  cNew = new Chart(document.getElementById("cNew"), {
+      type: "line",
+      data: { labels: BUFS.map(String), datasets: ds(7) },
+      options: opts("MiB")
+    });
+
+  if (window.parent) parent.postMessage("charts-ready", "*");
+});
+</script>
+</body></html>' style="display:none" frameborder="0"></iframe>
+  <iframe id="f1" data-srcdoc='<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:0 12px;font-family:system-ui,sans-serif}</style></head><body>
+<style>
+.ctrl-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1rem;align-items:flex-end}
+
+.pg{display:flex;border:0.5px solid var(--color-border-secondary, #d1d5db);border-radius:20px;overflow:hidden}
+.pill{padding:5px 14px;font-size:13px;cursor:pointer;background:transparent;border:none;color:var(--color-text-secondary, #4b5563)}
+
+.pill.on{background:var(--color-text-primary, #111827);color:var(--color-background-primary, #ffffff)}
+.slabel{font-size:11px;font-weight:500;color:var(--color-text-tertiary, #6b7280);text-transform:uppercase;margin-bottom:5px}
+.chart-title{font-size:13px;font-weight:500;color:var(--color-text-secondary, #4b5563);margin:1rem 0 4px}
+.cw{position:relative;width:100%;height:260px}
+.leg{display:flex;gap:16px;font-size:12px;color:var(--color-text-secondary, #4b5563);margin-bottom:.5rem}
+.leg span{display:flex;align-items:center;gap:5px}
+.lsq{display:inline-block;width:20px;height:3px;border-radius:2px}
+.warn{background:var(--color-background-warning, #fef08a);border:0.5px solid var(--color-border-warning, #facc15);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--color-text-warning, #854d0e);margin-bottom:1rem;display:none}
+</style>
+
+<div style="padding:18px 0 0">
+<h4 class="sr-only">32 platform threads on ARM with 16 cores</h4>
+<hr>
+<div class="ctrl-row">
+  <div><div class="slabel">allocation</div>
+    <div class="pg" id="gm">
+      <button class="pill on" data-v="direct">direct</button>
+      <button class="pill" data-v="heap">heap</button>
+    </div></div>
+  <div><div class="slabel">pattern</div>
+    <div class="pg" id="gp">
+        <button class="pill on" data-v="SOCKET_PROXY">SOCKET_PROXY</button>
+        <button class="pill" data-v="API_GATEWAY">API_GATEWAY</button>
+        <button class="pill" data-v="E_COMMERCE">E_COMMERCE</button>
+    </div></div>
+  <div><div class="slabel">read/write</div>
+    <div class="pg" id="gr">
+      <button class="pill on" data-v="true">on</button>
+      <button class="pill" data-v="false">off</button>
+    </div></div>
+</div>
+
+<div class="leg">
+  <span><span class="lsq" style="background:#4a7fcb"></span>POOLED</span>
+  <span><span class="lsq" style="background:#2aaa6e"></span>ADAPTIVE</span>
+  <span><span class="lsq" style="background:#d05a2a"></span>MIMALLOC</span>
+</div>
+
+<div class="chart-title">Latency (ns/op)&nbsp;&nbsp;<span style="font-weight:400;color:var(--color-text-tertiary)">the lower the better</span></div>
+<div class="cw"><canvas id="cL" role="img" aria-label="Allocation latency line chart"></canvas></div>
+
+<div class="chart-title">RSS (MiB)</div>
+<div class="cw"><canvas id="cR" role="img" aria-label="RSS memory line chart"></canvas></div>
+
+<div class="chart-title">allocator used memory (MiB)&nbsp;&nbsp;<span style="font-weight:400;color:var(--color-text-tertiary)">allocator.usedDirectMemory() or allocator.usedHeapMemory()</span></div>
+<div class="cw"><canvas id="cNew" role="img" aria-label="UsedMemory chart"></canvas></div>
+
+</div>
+
+<script>
+const D=[["direct",128,"POOLED","false","SOCKET_PROXY",415,15720,128],["direct",128,"POOLED","false","API_GATEWAY",431,15732,128],["direct",128,"POOLED","false","E_COMMERCE",520,16423,128],["direct",128,"POOLED","true","SOCKET_PROXY",424,15720,128],["direct",128,"POOLED","true","API_GATEWAY",465,15726,128],["direct",128,"POOLED","true","E_COMMERCE",510,16420,128],["direct",128,"ADAPTIVE","false","SOCKET_PROXY",203,351,116],["direct",128,"ADAPTIVE","false","API_GATEWAY",223,475,173],["direct",128,"ADAPTIVE","false","E_COMMERCE",217,2040,251],["direct",128,"ADAPTIVE","true","SOCKET_PROXY",225,352,115],["direct",128,"ADAPTIVE","true","API_GATEWAY",236,465,173],["direct",128,"ADAPTIVE","true","E_COMMERCE",208,2036,252],["direct",128,"MIMALLOC","false","SOCKET_PROXY",139,371,128],["direct",128,"MIMALLOC","false","API_GATEWAY",156,624,384],["direct",128,"MIMALLOC","false","E_COMMERCE",145,2150,384],["direct",128,"MIMALLOC","true","SOCKET_PROXY",131,361,128],["direct",128,"MIMALLOC","true","API_GATEWAY",161,622,384],["direct",128,"MIMALLOC","true","E_COMMERCE",144,2157,384],["direct",1024,"POOLED","false","SOCKET_PROXY",509,15840,256],["direct",1024,"POOLED","false","API_GATEWAY",438,15874,256],["direct",1024,"POOLED","false","E_COMMERCE",656,16677,384],["direct",1024,"POOLED","true","SOCKET_PROXY",491,15845,256],["direct",1024,"POOLED","true","API_GATEWAY",470,15860,256],["direct",1024,"POOLED","true","E_COMMERCE",625,16688,384],["direct",1024,"ADAPTIVE","false","SOCKET_PROXY",221,501,134],["direct",1024,"ADAPTIVE","false","API_GATEWAY",229,937,230],["direct",1024,"ADAPTIVE","false","E_COMMERCE",246,2491,279],["direct",1024,"ADAPTIVE","true","SOCKET_PROXY",216,501,146],["direct",1024,"ADAPTIVE","true","API_GATEWAY",243,927,231],["direct",1024,"ADAPTIVE","true","E_COMMERCE",189,2490,283],["direct",1024,"MIMALLOC","false","SOCKET_PROXY",137,496,258],["direct",1024,"MIMALLOC","false","API_GATEWAY",166,643,386],["direct",1024,"MIMALLOC","false","E_COMMERCE",164,2382,538],["direct",1024,"MIMALLOC","true","SOCKET_PROXY",154,519,262],["direct",1024,"MIMALLOC","true","API_GATEWAY",189,643,386],["direct",1024,"MIMALLOC","true","E_COMMERCE",154,2353,532],["direct",4096,"POOLED","false","SOCKET_PROXY",441,16133,512],["direct",4096,"POOLED","false","API_GATEWAY",420,16283,640],["direct",4096,"POOLED","false","E_COMMERCE",451,17247,774],["direct",4096,"POOLED","true","SOCKET_PROXY",495,16134,512],["direct",4096,"POOLED","true","API_GATEWAY",576,16256,640],["direct",4096,"POOLED","true","E_COMMERCE",605,17231,774],["direct",4096,"ADAPTIVE","false","SOCKET_PROXY",248,855,295],["direct",4096,"ADAPTIVE","false","API_GATEWAY",233,1335,531],["direct",4096,"ADAPTIVE","false","E_COMMERCE",251,2972,730],["direct",4096,"ADAPTIVE","true","SOCKET_PROXY",242,847,362],["direct",4096,"ADAPTIVE","true","API_GATEWAY",226,1321,648],["direct",4096,"ADAPTIVE","true","E_COMMERCE",214,2981,586],["direct",4096,"MIMALLOC","false","SOCKET_PROXY",158,888,576],["direct",4096,"MIMALLOC","false","API_GATEWAY",189,1080,800],["direct",4096,"MIMALLOC","false","E_COMMERCE",148,2859,1070],["direct",4096,"MIMALLOC","true","SOCKET_PROXY",158,888,562],["direct",4096,"MIMALLOC","true","API_GATEWAY",195,1061,782],["direct",4096,"MIMALLOC","true","E_COMMERCE",151,2859,1056],["direct",8192,"POOLED","false","SOCKET_PROXY",584,16672,986],["direct",8192,"POOLED","false","API_GATEWAY",445,16950,1268],["direct",8192,"POOLED","false","E_COMMERCE",523,17905,1480],["direct",8192,"POOLED","true","SOCKET_PROXY",646,16644,1018],["direct",8192,"POOLED","true","API_GATEWAY",560,16921,1280],["direct",8192,"POOLED","true","E_COMMERCE",816,17891,1456],["direct",8192,"ADAPTIVE","false","SOCKET_PROXY",203,1154,711],["direct",8192,"ADAPTIVE","false","API_GATEWAY",245,1902,1263],["direct",8192,"ADAPTIVE","false","E_COMMERCE",239,3678,1380],["direct",8192,"ADAPTIVE","true","SOCKET_PROXY",283,1131,739],["direct",8192,"ADAPTIVE","true","API_GATEWAY",365,1782,1264],["direct",8192,"ADAPTIVE","true","E_COMMERCE",320,3555,1247],["direct",8192,"MIMALLOC","false","SOCKET_PROXY",223,1271,1024],["direct",8192,"MIMALLOC","false","API_GATEWAY",293,1563,1304],["direct",8192,"MIMALLOC","false","E_COMMERCE",198,3512,1734],["direct",8192,"MIMALLOC","true","SOCKET_PROXY",232,1291,1026],["direct",8192,"MIMALLOC","true","API_GATEWAY",278,1546,1292],["direct",8192,"MIMALLOC","true","E_COMMERCE",196,3490,1692],["direct",16384,"POOLED","false","SOCKET_PROXY",551,17452,1792],["direct",16384,"POOLED","false","API_GATEWAY",477,17992,2304],["direct",16384,"POOLED","false","E_COMMERCE",659,19258,2834],["direct",16384,"POOLED","true","SOCKET_PROXY",677,17455,1792],["direct",16384,"POOLED","true","API_GATEWAY",877,17973,2304],["direct",16384,"POOLED","true","E_COMMERCE",728,19237,2842],["direct",16384,"ADAPTIVE","false","SOCKET_PROXY",264,1866,1405],["direct",16384,"ADAPTIVE","false","API_GATEWAY",279,2909,2362],["direct",16384,"ADAPTIVE","false","E_COMMERCE",294,4843,2635],["direct",16384,"ADAPTIVE","true","SOCKET_PROXY",451,1812,1404],["direct",16384,"ADAPTIVE","true","API_GATEWAY",488,2830,2369],["direct",16384,"ADAPTIVE","true","E_COMMERCE",437,4814,2642],["direct",16384,"MIMALLOC","false","SOCKET_PROXY",423,2113,1800],["direct",16384,"MIMALLOC","false","API_GATEWAY",508,2683,2326],["direct",16384,"MIMALLOC","false","E_COMMERCE",317,4799,2998],["direct",16384,"MIMALLOC","true","SOCKET_PROXY",419,2114,1798],["direct",16384,"MIMALLOC","true","API_GATEWAY",482,2683,2346],["direct",16384,"MIMALLOC","true","E_COMMERCE",365,4778,2978],["direct",32768,"POOLED","false","SOCKET_PROXY",742,19344,3584],["direct",32768,"POOLED","false","API_GATEWAY",556,20248,4454],["direct",32768,"POOLED","false","E_COMMERCE",474,21878,5376],["direct",32768,"POOLED","true","SOCKET_PROXY",803,19335,3506],["direct",32768,"POOLED","true","API_GATEWAY",805,20138,4354],["direct",32768,"POOLED","true","E_COMMERCE",1058,21874,5376],["direct",32768,"ADAPTIVE","false","SOCKET_PROXY",376,3533,2720],["direct",32768,"ADAPTIVE","false","API_GATEWAY",413,5425,4595],["direct",32768,"ADAPTIVE","false","E_COMMERCE",430,7367,5095],["direct",32768,"ADAPTIVE","true","SOCKET_PROXY",510,3159,2712],["direct",32768,"ADAPTIVE","true","API_GATEWAY",536,5111,4601],["direct",32768,"ADAPTIVE","true","E_COMMERCE",511,7364,5088],["direct",32768,"MIMALLOC","false","SOCKET_PROXY",538,3772,3408],["direct",32768,"MIMALLOC","false","API_GATEWAY",606,4508,4180],["direct",32768,"MIMALLOC","false","E_COMMERCE",524,7298,5438],["direct",32768,"MIMALLOC","true","SOCKET_PROXY",567,3722,3398],["direct",32768,"MIMALLOC","true","API_GATEWAY",598,4564,4212],["direct",32768,"MIMALLOC","true","E_COMMERCE",530,7287,5434],["direct",65536,"POOLED","false","SOCKET_PROXY",458,23609,6912],["direct",65536,"POOLED","false","API_GATEWAY",494,25583,8704],["direct",65536,"POOLED","false","E_COMMERCE",874,28473,10700],["direct",65536,"POOLED","true","SOCKET_PROXY",840,23625,6912],["direct",65536,"POOLED","true","API_GATEWAY",973,25581,8704],["direct",65536,"POOLED","true","E_COMMERCE",721,28473,10650],["direct",65536,"ADAPTIVE","false","SOCKET_PROXY",451,6126,5309],["direct",65536,"ADAPTIVE","false","API_GATEWAY",493,10056,9062],["direct",65536,"ADAPTIVE","false","E_COMMERCE",446,12600,9985],["direct",65536,"ADAPTIVE","true","SOCKET_PROXY",546,6128,5309],["direct",65536,"ADAPTIVE","true","API_GATEWAY",610,10063,9059],["direct",65536,"ADAPTIVE","true","E_COMMERCE",626,12630,10003],["direct",65536,"MIMALLOC","false","SOCKET_PROXY",660,7045,6544],["direct",65536,"MIMALLOC","false","API_GATEWAY",777,8353,7892],["direct",65536,"MIMALLOC","false","E_COMMERCE",630,12313,10326],["direct",65536,"MIMALLOC","true","SOCKET_PROXY",712,6859,6404],["direct",65536,"MIMALLOC","true","API_GATEWAY",811,8330,7876],["direct",65536,"MIMALLOC","true","E_COMMERCE",671,12300,10328],["heap",128,"POOLED","false","SOCKET_PROXY",336,15791,128],["heap",128,"POOLED","false","API_GATEWAY",595,15841,128],["heap",128,"POOLED","false","E_COMMERCE",622,16513,128],["heap",128,"POOLED","true","SOCKET_PROXY",586,15841,128],["heap",128,"POOLED","true","API_GATEWAY",363,15837,128],["heap",128,"POOLED","true","E_COMMERCE",581,16517,128],["heap",128,"ADAPTIVE","false","SOCKET_PROXY",224,340,116],["heap",128,"ADAPTIVE","false","API_GATEWAY",216,453,173],["heap",128,"ADAPTIVE","false","E_COMMERCE",228,2338,251],["heap",128,"ADAPTIVE","true","SOCKET_PROXY",221,361,113],["heap",128,"ADAPTIVE","true","API_GATEWAY",229,440,173],["heap",128,"ADAPTIVE","true","E_COMMERCE",302,2339,249],["heap",128,"MIMALLOC","false","SOCKET_PROXY",137,378,130],["heap",128,"MIMALLOC","false","API_GATEWAY",152,670,384],["heap",128,"MIMALLOC","false","E_COMMERCE",269,2326,384],["heap",128,"MIMALLOC","true","SOCKET_PROXY",131,366,128],["heap",128,"MIMALLOC","true","API_GATEWAY",155,667,384],["heap",128,"MIMALLOC","true","E_COMMERCE",249,2323,382],["heap",1024,"POOLED","false","SOCKET_PROXY",390,15933,256],["heap",1024,"POOLED","false","API_GATEWAY",438,16010,256],["heap",1024,"POOLED","false","E_COMMERCE",518,16849,384],["heap",1024,"POOLED","true","SOCKET_PROXY",431,15992,256],["heap",1024,"POOLED","true","API_GATEWAY",481,15996,256],["heap",1024,"POOLED","true","E_COMMERCE",458,16930,384],["heap",1024,"ADAPTIVE","false","SOCKET_PROXY",219,508,134],["heap",1024,"ADAPTIVE","false","API_GATEWAY",216,967,230],["heap",1024,"ADAPTIVE","false","E_COMMERCE",316,2378,285],["heap",1024,"ADAPTIVE","true","SOCKET_PROXY",214,500,133],["heap",1024,"ADAPTIVE","true","API_GATEWAY",240,931,230],["heap",1024,"ADAPTIVE","true","E_COMMERCE",259,2342,282],["heap",1024,"MIMALLOC","false","SOCKET_PROXY",142,522,256],["heap",1024,"MIMALLOC","false","API_GATEWAY",185,684,384],["heap",1024,"MIMALLOC","false","E_COMMERCE",302,2322,540],["heap",1024,"MIMALLOC","true","SOCKET_PROXY",147,570,268],["heap",1024,"MIMALLOC","true","API_GATEWAY",186,736,388],["heap",1024,"MIMALLOC","true","E_COMMERCE",195,2349,540],["heap",4096,"POOLED","false","SOCKET_PROXY",368,16331,512],["heap",4096,"POOLED","false","API_GATEWAY",369,16424,640],["heap",4096,"POOLED","false","E_COMMERCE",432,17551,814],["heap",4096,"POOLED","true","SOCKET_PROXY",430,16264,512],["heap",4096,"POOLED","true","API_GATEWAY",447,16433,640],["heap",4096,"POOLED","true","E_COMMERCE",632,17527,784],["heap",4096,"ADAPTIVE","false","SOCKET_PROXY",241,847,303],["heap",4096,"ADAPTIVE","false","API_GATEWAY",216,2122,619],["heap",4096,"ADAPTIVE","false","E_COMMERCE",263,2380,779],["heap",4096,"ADAPTIVE","true","SOCKET_PROXY",222,825,419],["heap",4096,"ADAPTIVE","true","API_GATEWAY",262,2100,488],["heap",4096,"ADAPTIVE","true","E_COMMERCE",340,2345,450],["heap",4096,"MIMALLOC","false","SOCKET_PROXY",153,967,556],["heap",4096,"MIMALLOC","false","API_GATEWAY",184,1146,776],["heap",4096,"MIMALLOC","false","E_COMMERCE",196,3245,1226],["heap",4096,"MIMALLOC","true","SOCKET_PROXY",157,972,546],["heap",4096,"MIMALLOC","true","API_GATEWAY",189,1164,786],["heap",4096,"MIMALLOC","true","E_COMMERCE",321,3234,1314],["heap",8192,"POOLED","false","SOCKET_PROXY",398,16895,888],["heap",8192,"POOLED","false","API_GATEWAY",663,17244,1248],["heap",8192,"POOLED","false","E_COMMERCE",549,18317,1448],["heap",8192,"POOLED","true","SOCKET_PROXY",544,16871,1006],["heap",8192,"POOLED","true","API_GATEWAY",794,17189,1238],["heap",8192,"POOLED","true","E_COMMERCE",634,18334,1450],["heap",8192,"ADAPTIVE","false","SOCKET_PROXY",234,1153,736],["heap",8192,"ADAPTIVE","false","API_GATEWAY",324,2498,1262],["heap",8192,"ADAPTIVE","false","E_COMMERCE",321,3513,1409],["heap",8192,"ADAPTIVE","true","SOCKET_PROXY",246,1137,738],["heap",8192,"ADAPTIVE","true","API_GATEWAY",354,2458,1258],["heap",8192,"ADAPTIVE","true","E_COMMERCE",350,3490,1425],["heap",8192,"MIMALLOC","false","SOCKET_PROXY",317,2304,1028],["heap",8192,"MIMALLOC","false","API_GATEWAY",346,2336,1306],["heap",8192,"MIMALLOC","false","E_COMMERCE",217,3700,1948],["heap",8192,"MIMALLOC","true","SOCKET_PROXY",440,2296,1028],["heap",8192,"MIMALLOC","true","API_GATEWAY",259,2297,1300],["heap",8192,"MIMALLOC","true","E_COMMERCE",220,3700,1740],["heap",16384,"POOLED","false","SOCKET_PROXY",406,17901,1792],["heap",16384,"POOLED","false","API_GATEWAY",419,18509,2304],["heap",16384,"POOLED","false","E_COMMERCE",660,20267,2790],["heap",16384,"POOLED","true","SOCKET_PROXY",749,17940,1792],["heap",16384,"POOLED","true","API_GATEWAY",764,18557,2302],["heap",16384,"POOLED","true","E_COMMERCE",624,20270,2824],["heap",16384,"ADAPTIVE","false","SOCKET_PROXY",373,2518,1400],["heap",16384,"ADAPTIVE","false","API_GATEWAY",299,3683,2361],["heap",16384,"ADAPTIVE","false","E_COMMERCE",452,4630,2652],["heap",16384,"ADAPTIVE","true","SOCKET_PROXY",418,2519,1396],["heap",16384,"ADAPTIVE","true","API_GATEWAY",680,3668,2362],["heap",16384,"ADAPTIVE","true","E_COMMERCE",559,4629,2643],["heap",16384,"MIMALLOC","false","SOCKET_PROXY",666,3303,1810],["heap",16384,"MIMALLOC","false","API_GATEWAY",833,3256,2258],["heap",16384,"MIMALLOC","false","E_COMMERCE",454,5160,3080],["heap",16384,"MIMALLOC","true","SOCKET_PROXY",537,3296,1794],["heap",16384,"MIMALLOC","true","API_GATEWAY",654,3271,2278],["heap",16384,"MIMALLOC","true","E_COMMERCE",466,5140,3048],["heap",32768,"POOLED","false","SOCKET_PROXY",438,20293,3584],["heap",32768,"POOLED","false","API_GATEWAY",532,21518,4476],["heap",32768,"POOLED","false","E_COMMERCE",575,23318,5376],["heap",32768,"POOLED","true","SOCKET_PROXY",841,20274,3584],["heap",32768,"POOLED","true","API_GATEWAY",870,21398,4352],["heap",32768,"POOLED","true","E_COMMERCE",724,23286,5376],["heap",32768,"ADAPTIVE","false","SOCKET_PROXY",648,3728,2713],["heap",32768,"ADAPTIVE","false","API_GATEWAY",622,5955,4604],["heap",32768,"ADAPTIVE","false","E_COMMERCE",476,6927,5083],["heap",32768,"ADAPTIVE","true","SOCKET_PROXY",570,3670,2713],["heap",32768,"ADAPTIVE","true","API_GATEWAY",737,5903,4599],["heap",32768,"ADAPTIVE","true","E_COMMERCE",712,6877,5089],["heap",32768,"MIMALLOC","false","SOCKET_PROXY",933,5238,3414],["heap",32768,"MIMALLOC","false","API_GATEWAY",983,5730,4272],["heap",32768,"MIMALLOC","false","E_COMMERCE",600,8076,5760],["heap",32768,"MIMALLOC","true","SOCKET_PROXY",819,5274,3340],["heap",32768,"MIMALLOC","true","API_GATEWAY",949,5729,4138],["heap",32768,"MIMALLOC","true","E_COMMERCE",790,8076,5578],["heap",65536,"POOLED","false","SOCKET_PROXY",647,24448,6912],["heap",65536,"POOLED","false","API_GATEWAY",790,25318,8704],["heap",65536,"POOLED","false","E_COMMERCE",744,24424,10632],["heap",65536,"POOLED","true","SOCKET_PROXY",935,24485,6910],["heap",65536,"POOLED","true","API_GATEWAY",969,25276,8704],["heap",65536,"POOLED","true","E_COMMERCE",938,24446,10750],["heap",65536,"ADAPTIVE","false","SOCKET_PROXY",570,7079,5311],["heap",65536,"ADAPTIVE","false","API_GATEWAY",624,10586,9061],["heap",65536,"ADAPTIVE","false","E_COMMERCE",612,12612,10006],["heap",65536,"ADAPTIVE","true","SOCKET_PROXY",851,7148,5307],["heap",65536,"ADAPTIVE","true","API_GATEWAY",816,10538,9059],["heap",65536,"ADAPTIVE","true","E_COMMERCE",656,12615,9985],["heap",65536,"MIMALLOC","false","SOCKET_PROXY",999,8214,6400],["heap",65536,"MIMALLOC","false","API_GATEWAY",887,10129,7968],["heap",65536,"MIMALLOC","false","E_COMMERCE",823,14350,10388],["heap",65536,"MIMALLOC","true","SOCKET_PROXY",772,8178,6398],["heap",65536,"MIMALLOC","true","API_GATEWAY",974,10130,7916],["heap",65536,"MIMALLOC","true","E_COMMERCE",840,14368,10396]];
+
+
+const BUFS=[128,1024,4096,8192,16384,32768,65536];
+const AL=["POOLED","ADAPTIVE","MIMALLOC"];
+const CLR={"POOLED":"#4a7fcb","ADAPTIVE":"#2aaa6e","MIMALLOC":"#d05a2a"};
+let st={method:"direct",pattern:"SOCKET_PROXY",rw:"true"};
+let cL,cR;
+
+function rows(){return D.filter(r=>r[0]===st.method&&r[3]===st.rw&&r[4]===st.pattern);}
+function ds(col){
+  return AL.map(a=>{
+    const sub=rows().filter(r=>r[2]===a);
+    return{label:a,data:BUFS.map(b=>{const r=sub.find(x=>x[1]===b);return r?r[col]:null;}),
+      borderColor:CLR[a],backgroundColor:CLR[a]+"22",borderWidth:2,
+    };
+  });
+}
+function opts(ytitle){
+  return{responsive:true,maintainAspectRatio:false,animation:{duration:300},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y!=null?Math.round(c.parsed.y):"n/a"}`}}},
+    scales:{x:{grid:{color:"rgba(128,128,128,.12)"},ticks:{font:{size:11}},title:{display:true,text:"Live buffers",font:{size:11}}},
+            y:{grid:{color:"rgba(128,128,128,.12)"},ticks:{font:{size:11}},title:{display:true,text:ytitle,font:{size:11}}}}};
+}
+function draw(){
+  const lData={labels:BUFS.map(String),datasets:ds(5)};
+  const rData={labels:BUFS.map(String),datasets:ds(6)};
+  const nData={labels:BUFS.map(String),datasets:ds(7)};
+  if(cL){cL.data=lData;cL.update();}
+  if(cR){cR.data=rData;cR.update();}
+  if (cNew) { cNew.data = nData; cNew.update(); }
+}
+
+document.querySelectorAll(".pg").forEach(g=>{
+  g.addEventListener("click",e=>{
+    const b=e.target.closest(".pill");if(!b)return;
+    g.querySelectorAll(".pill").forEach(p=>p.classList.remove("on"));
+    b.classList.add("on");
+    const id=g.id;
+    if(id==="gm")st.method=b.dataset.v;
+    if(id==="gp")st.pattern=b.dataset.v;
+    if(id==="gr")st.rw=b.dataset.v;
+    draw();
+  });
+});
+
+function loadChartJS(cb){
+  const CDNS=[
+    "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+  ];
+  let done=false;
+  CDNS.forEach(url=>{
+    const s=document.createElement("script");
+    s.src=url;
+    s.onload=()=>{ if(!done){ done=true; cb(); } };
+    document.head.appendChild(s);
+  });
+}
+loadChartJS(function(){
+  cL=new Chart(document.getElementById("cL"),{type:"line",data:{labels:BUFS.map(String),datasets:ds(5)},options:opts("ns/op")});
+  cR=new Chart(document.getElementById("cR"),{type:"line",data:{labels:BUFS.map(String),datasets:ds(6)},options:opts("MiB")});
+  cNew = new Chart(document.getElementById("cNew"), {
+      type: "line",
+      data: { labels: BUFS.map(String), datasets: ds(7) },
+      options: opts("MiB")
+    });
+
+  if (window.parent) parent.postMessage("charts-ready", "*");
+});
+</script>
+</body></html>' style="display:none" frameborder="0"></iframe>
+  <iframe id="f2" data-srcdoc='<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:0 12px;font-family:system-ui,sans-serif}</style></head><body>
+<style>
+.ctrl-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1rem;align-items:flex-end}
+
+.pg{display:flex;border:0.5px solid var(--color-border-secondary, #d1d5db);border-radius:20px;overflow:hidden}
+.pill{padding:5px 14px;font-size:13px;cursor:pointer;background:transparent;border:none;color:var(--color-text-secondary, #4b5563)}
+
+.pill.on{background:var(--color-text-primary, #111827);color:var(--color-background-primary, #ffffff)}
+.slabel{font-size:11px;font-weight:500;color:var(--color-text-tertiary, #6b7280);text-transform:uppercase;margin-bottom:5px}
+.chart-title{font-size:13px;font-weight:500;color:var(--color-text-secondary, #4b5563);margin:1rem 0 4px}
+.cw{position:relative;width:100%;height:260px}
+.leg{display:flex;gap:16px;font-size:12px;color:var(--color-text-secondary, #4b5563);margin-bottom:.5rem}
+.leg span{display:flex;align-items:center;gap:5px}
+.lsq{display:inline-block;width:20px;height:3px;border-radius:2px}
+.warn{background:var(--color-background-warning, #fef08a);border:0.5px solid var(--color-border-warning, #facc15);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--color-text-warning, #854d0e);margin-bottom:1rem;display:none}
+</style>
+
+<div style="padding:18px 0 0">
+<h4 class="sr-only">32 event loop threads on X86 with 16 cores</h4>
+<hr>
+<div class="ctrl-row">
+  <div><div class="slabel">allocation</div>
+    <div class="pg" id="gm">
+      <button class="pill on" data-v="direct">direct</button>
+      <button class="pill" data-v="heap">heap</button>
+    </div></div>
+  <div><div class="slabel">pattern</div>
+    <div class="pg" id="gp">
+      <button class="pill on" data-v="SOCKET_PROXY">SOCKET_PROXY</button>
+      <button class="pill" data-v="API_GATEWAY">API_GATEWAY</button>
+      <button class="pill" data-v="E_COMMERCE">E_COMMERCE</button>
+    </div></div>
+  <div><div class="slabel">read/write</div>
+    <div class="pg" id="gr">
+      <button class="pill on" data-v="true">on</button>
+      <button class="pill" data-v="false">off</button>
+    </div></div>
+</div>
+
+<div class="leg">
+  <span><span class="lsq" style="background:#4a7fcb"></span>POOLED</span>
+  <span><span class="lsq" style="background:#2aaa6e"></span>ADAPTIVE (page store, mmap)</span>
+  <span><span class="lsq" style="background:repeating-linear-gradient(90deg,#2aaa6e 0 6px,transparent 6px 10px)"></span>ADAPTIVE (page store, mmap off, direct only)</span>
+  <span><span class="lsq" style="background:#d05a2a"></span>MIMALLOC</span>
+</div>
+
+<div class="chart-title">Latency (ns/op)&nbsp;&nbsp;<span style="font-weight:400;color:var(--color-text-tertiary)">the lower the better</span></div>
+<div class="cw"><canvas id="cL" role="img" aria-label="Allocation latency line chart"></canvas></div>
+
+<div class="chart-title">RSS (MiB)</div>
+<div class="cw"><canvas id="cR" role="img" aria-label="RSS memory line chart"></canvas></div>
+
+<div class="chart-title">allocator used memory (MiB)&nbsp;&nbsp;<span style="font-weight:400;color:var(--color-text-tertiary)">allocator.usedDirectMemory() or allocator.usedHeapMemory()</span></div>
+<div class="cw"><canvas id="cNew" role="img" aria-label="UsedMemory chart"></canvas></div>
+
+</div>
+
+<script>
+const D=[["direct",128,"POOLED","false","SOCKET_PROXY",441,247,128],["direct",128,"POOLED","false","API_GATEWAY",468,533,128],["direct",128,"POOLED","false","E_COMMERCE",545,1664,128],["direct",128,"POOLED","true","SOCKET_PROXY",523,254,128],["direct",128,"POOLED","true","API_GATEWAY",578,543,128],["direct",128,"POOLED","true","E_COMMERCE",540,1727,128],["direct",128,"ADAPTIVE","false","SOCKET_PROXY",222,188,120],["direct",128,"ADAPTIVE","false","API_GATEWAY",202,192,236],["direct",128,"ADAPTIVE","false","E_COMMERCE",211,1585,255],["direct",128,"ADAPTIVE","true","SOCKET_PROXY",234,206,120],["direct",128,"ADAPTIVE","true","API_GATEWAY",225,233,236],["direct",128,"ADAPTIVE","true","E_COMMERCE",240,1618,255],["direct",128,"MIMALLOC","false","SOCKET_PROXY",223,269,128],["direct",128,"MIMALLOC","false","API_GATEWAY",278,431,384],["direct",128,"MIMALLOC","false","E_COMMERCE",252,1815,376],["direct",128,"MIMALLOC","true","SOCKET_PROXY",247,273,128],["direct",128,"MIMALLOC","true","API_GATEWAY",301,428,384],["direct",128,"MIMALLOC","true","E_COMMERCE",294,1811,382],["direct",1024,"POOLED","false","SOCKET_PROXY",473,323,256],["direct",1024,"POOLED","false","API_GATEWAY",547,716,256],["direct",1024,"POOLED","false","E_COMMERCE",577,1778,384],["direct",1024,"POOLED","true","SOCKET_PROXY",589,376,256],["direct",1024,"POOLED","true","API_GATEWAY",584,918,256],["direct",1024,"POOLED","true","E_COMMERCE",694,1954,384],["direct",1024,"ADAPTIVE","false","SOCKET_PROXY",219,198,202],["direct",1024,"ADAPTIVE","false","API_GATEWAY",261,202,332],["direct",1024,"ADAPTIVE","false","E_COMMERCE",220,1592,414],["direct",1024,"ADAPTIVE","true","SOCKET_PROXY",275,266,202],["direct",1024,"ADAPTIVE","true","API_GATEWAY",302,358,331],["direct",1024,"ADAPTIVE","true","E_COMMERCE",265,1693,414],["direct",1024,"MIMALLOC","false","SOCKET_PROXY",253,352,256],["direct",1024,"MIMALLOC","false","API_GATEWAY",295,508,384],["direct",1024,"MIMALLOC","false","E_COMMERCE",282,2036,512],["direct",1024,"MIMALLOC","true","SOCKET_PROXY",277,356,256],["direct",1024,"MIMALLOC","true","API_GATEWAY",328,514,384],["direct",1024,"MIMALLOC","true","E_COMMERCE",298,2032,512],["direct",4096,"POOLED","false","SOCKET_PROXY",600,426,512],["direct",4096,"POOLED","false","API_GATEWAY",693,785,768],["direct",4096,"POOLED","false","E_COMMERCE",651,1906,1024],["direct",4096,"POOLED","true","SOCKET_PROXY",717,605,512],["direct",4096,"POOLED","true","API_GATEWAY",835,1304,768],["direct",4096,"POOLED","true","E_COMMERCE",877,2572,1024],["direct",4096,"ADAPTIVE","false","SOCKET_PROXY",247,200,446],["direct",4096,"ADAPTIVE","false","API_GATEWAY",286,215,695],["direct",4096,"ADAPTIVE","false","E_COMMERCE",261,1608,876],["direct",4096,"ADAPTIVE","true","SOCKET_PROXY",311,389,445],["direct",4096,"ADAPTIVE","true","API_GATEWAY",358,615,696],["direct",4096,"ADAPTIVE","true","E_COMMERCE",332,1962,876],["direct",4096,"MIMALLOC","false","SOCKET_PROXY",303,456,512],["direct",4096,"MIMALLOC","false","API_GATEWAY",420,839,768],["direct",4096,"MIMALLOC","false","E_COMMERCE",333,2256,1024],["direct",4096,"MIMALLOC","true","SOCKET_PROXY",357,446,512],["direct",4096,"MIMALLOC","true","API_GATEWAY",394,848,768],["direct",4096,"MIMALLOC","true","E_COMMERCE",354,2250,1024],["direct",8192,"POOLED","false","SOCKET_PROXY",773,515,896],["direct",8192,"POOLED","false","API_GATEWAY",905,819,1408],["direct",8192,"POOLED","false","E_COMMERCE",825,1972,1660],["direct",8192,"POOLED","true","SOCKET_PROXY",951,863,896],["direct",8192,"POOLED","true","API_GATEWAY",1030,1895,1408],["direct",8192,"POOLED","true","E_COMMERCE",918,3092,1718],["direct",8192,"ADAPTIVE","false","SOCKET_PROXY",298,220,780],["direct",8192,"ADAPTIVE","false","API_GATEWAY",322,227,1210],["direct",8192,"ADAPTIVE","false","E_COMMERCE",298,1622,1565],["direct",8192,"ADAPTIVE","true","SOCKET_PROXY",447,546,778],["direct",8192,"ADAPTIVE","true","API_GATEWAY",523,926,1209],["direct",8192,"ADAPTIVE","true","E_COMMERCE",439,2035,1566],["direct",8192,"MIMALLOC","false","SOCKET_PROXY",482,604,1024],["direct",8192,"MIMALLOC","false","API_GATEWAY",608,1272,1280],["direct",8192,"MIMALLOC","false","E_COMMERCE",477,2322,1664],["direct",8192,"MIMALLOC","true","SOCKET_PROXY",551,597,1024],["direct",8192,"MIMALLOC","true","API_GATEWAY",669,1272,1280],["direct",8192,"MIMALLOC","true","E_COMMERCE",522,2320,1664],["direct",16384,"POOLED","false","SOCKET_PROXY",884,703,1792],["direct",16384,"POOLED","false","API_GATEWAY",997,958,2432],["direct",16384,"POOLED","false","E_COMMERCE",1086,2002,3052],["direct",16384,"POOLED","true","SOCKET_PROXY",1028,1446,1792],["direct",16384,"POOLED","true","API_GATEWAY",1153,2950,2432],["direct",16384,"POOLED","true","E_COMMERCE",1237,3518,3068],["direct",16384,"ADAPTIVE","false","SOCKET_PROXY",403,249,1440],["direct",16384,"ADAPTIVE","false","API_GATEWAY",474,252,2136],["direct",16384,"ADAPTIVE","false","E_COMMERCE",411,1642,2916],["direct",16384,"ADAPTIVE","true","SOCKET_PROXY",581,851,1439],["direct",16384,"ADAPTIVE","true","API_GATEWAY",644,1644,2138],["direct",16384,"ADAPTIVE","true","E_COMMERCE",584,2358,2913],["direct",16384,"MIMALLOC","false","SOCKET_PROXY",672,968,1792],["direct",16384,"MIMALLOC","false","API_GATEWAY",823,1926,2304],["direct",16384,"MIMALLOC","false","E_COMMERCE",665,2549,2944],["direct",16384,"MIMALLOC","true","SOCKET_PROXY",722,970,1792],["direct",16384,"MIMALLOC","true","API_GATEWAY",874,1922,2304],["direct",16384,"MIMALLOC","true","E_COMMERCE",754,2548,2944],["direct",32768,"POOLED","false","SOCKET_PROXY",1011,1107,3200],["direct",32768,"POOLED","false","API_GATEWAY",1026,1438,4608],["direct",32768,"POOLED","false","E_COMMERCE",1218,2074,5734],["direct",32768,"POOLED","true","SOCKET_PROXY",1188,2302,3200],["direct",32768,"POOLED","true","API_GATEWAY",1245,4959,4608],["direct",32768,"POOLED","true","E_COMMERCE",1373,4211,5730],["direct",32768,"ADAPTIVE","false","SOCKET_PROXY",556,302,2759],["direct",32768,"ADAPTIVE","false","API_GATEWAY",621,306,4011],["direct",32768,"ADAPTIVE","false","E_COMMERCE",547,1694,5552],["direct",32768,"ADAPTIVE","true","SOCKET_PROXY",675,1454,2760],["direct",32768,"ADAPTIVE","true","API_GATEWAY",772,2818,4011],["direct",32768,"ADAPTIVE","true","E_COMMERCE",657,3048,5550],["direct",32768,"MIMALLOC","false","SOCKET_PROXY",890,1467,3328],["direct",32768,"MIMALLOC","false","API_GATEWAY",986,3158,4096],["direct",32768,"MIMALLOC","false","E_COMMERCE",806,3273,5376],["direct",32768,"MIMALLOC","true","SOCKET_PROXY",879,1468,3328],["direct",32768,"MIMALLOC","true","API_GATEWAY",1050,3160,4096],["direct",32768,"MIMALLOC","true","E_COMMERCE",891,3269,5376],["direct",65536,"POOLED","false","SOCKET_PROXY",1043,1553,6272],["direct",65536,"POOLED","false","API_GATEWAY",1250,1618,9088],["direct",65536,"POOLED","false","E_COMMERCE",1481,2334,11116],["direct",65536,"POOLED","true","SOCKET_PROXY",1206,3884,6272],["direct",65536,"POOLED","true","API_GATEWAY",1409,7782,9088],["direct",65536,"POOLED","true","E_COMMERCE",1699,5652,11108],["direct",65536,"ADAPTIVE","false","SOCKET_PROXY",658,402,5339],["direct",65536,"ADAPTIVE","false","API_GATEWAY",824,409,7843],["direct",65536,"ADAPTIVE","false","E_COMMERCE",662,1800,10814],["direct",65536,"ADAPTIVE","true","SOCKET_PROXY",787,2667,5340],["direct",65536,"ADAPTIVE","true","API_GATEWAY",991,5326,7844],["direct",65536,"ADAPTIVE","true","E_COMMERCE",756,4316,10806],["direct",65536,"MIMALLOC","false","SOCKET_PROXY",986,2700,6400],["direct",65536,"MIMALLOC","false","API_GATEWAY",1149,5640,7808],["direct",65536,"MIMALLOC","false","E_COMMERCE",911,4518,10366],["direct",65536,"MIMALLOC","true","SOCKET_PROXY",1097,2700,6400],["direct",65536,"MIMALLOC","true","API_GATEWAY",1272,5646,7808],["direct",65536,"MIMALLOC","true","E_COMMERCE",1049,4500,10368],["heap",128,"POOLED","false","SOCKET_PROXY",454,374,128],["heap",128,"POOLED","false","API_GATEWAY",546,622,128],["heap",128,"POOLED","false","E_COMMERCE",558,1790,128],["heap",128,"POOLED","true","SOCKET_PROXY",512,373,128],["heap",128,"POOLED","true","API_GATEWAY",528,634,128],["heap",128,"POOLED","true","E_COMMERCE",464,1804,128],["heap",128,"ADAPTIVE","false","SOCKET_PROXY",256,321,129],["heap",128,"ADAPTIVE","false","API_GATEWAY",204,474,279],["heap",128,"ADAPTIVE","false","E_COMMERCE",236,1930,267],["heap",128,"ADAPTIVE","true","SOCKET_PROXY",215,319,129],["heap",128,"ADAPTIVE","true","API_GATEWAY",224,476,279],["heap",128,"ADAPTIVE","true","E_COMMERCE",224,2006,267],["heap",128,"MIMALLOC","false","SOCKET_PROXY",235,304,128],["heap",128,"MIMALLOC","false","API_GATEWAY",241,567,384],["heap",128,"MIMALLOC","false","E_COMMERCE",265,2004,378],["heap",128,"MIMALLOC","true","SOCKET_PROXY",228,307,128],["heap",128,"MIMALLOC","true","API_GATEWAY",249,565,384],["heap",128,"MIMALLOC","true","E_COMMERCE",270,1991,372],["heap",1024,"POOLED","false","SOCKET_PROXY",522,572,256],["heap",1024,"POOLED","false","API_GATEWAY",610,930,256],["heap",1024,"POOLED","false","E_COMMERCE",592,2125,384],["heap",1024,"POOLED","true","SOCKET_PROXY",567,570,256],["heap",1024,"POOLED","true","API_GATEWAY",584,956,256],["heap",1024,"POOLED","true","E_COMMERCE",628,2122,384],["heap",1024,"ADAPTIVE","false","SOCKET_PROXY",228,390,196],["heap",1024,"ADAPTIVE","false","API_GATEWAY",252,583,385],["heap",1024,"ADAPTIVE","false","E_COMMERCE",239,2002,405],["heap",1024,"ADAPTIVE","true","SOCKET_PROXY",266,392,196],["heap",1024,"ADAPTIVE","true","API_GATEWAY",285,585,385],["heap",1024,"ADAPTIVE","true","E_COMMERCE",322,2006,405],["heap",1024,"MIMALLOC","false","SOCKET_PROXY",269,438,256],["heap",1024,"MIMALLOC","false","API_GATEWAY",303,574,384],["heap",1024,"MIMALLOC","false","E_COMMERCE",280,1926,512],["heap",1024,"MIMALLOC","true","SOCKET_PROXY",251,444,256],["heap",1024,"MIMALLOC","true","API_GATEWAY",309,576,384],["heap",1024,"MIMALLOC","true","E_COMMERCE",284,1895,512],["heap",4096,"POOLED","false","SOCKET_PROXY",619,933,512],["heap",4096,"POOLED","false","API_GATEWAY",643,2024,768],["heap",4096,"POOLED","false","E_COMMERCE",704,3021,1024],["heap",4096,"POOLED","true","SOCKET_PROXY",716,924,512],["heap",4096,"POOLED","true","API_GATEWAY",807,2035,768],["heap",4096,"POOLED","true","E_COMMERCE",804,3085,1024],["heap",4096,"ADAPTIVE","false","SOCKET_PROXY",261,658,446],["heap",4096,"ADAPTIVE","false","API_GATEWAY",300,972,763],["heap",4096,"ADAPTIVE","false","E_COMMERCE",277,2000,905],["heap",4096,"ADAPTIVE","true","SOCKET_PROXY",300,652,444],["heap",4096,"ADAPTIVE","true","API_GATEWAY",375,977,765],["heap",4096,"ADAPTIVE","true","E_COMMERCE",408,2030,907],["heap",4096,"MIMALLOC","false","SOCKET_PROXY",323,843,512],["heap",4096,"MIMALLOC","false","API_GATEWAY",420,964,768],["heap",4096,"MIMALLOC","false","E_COMMERCE",345,2802,1024],["heap",4096,"MIMALLOC","true","SOCKET_PROXY",320,844,512],["heap",4096,"MIMALLOC","true","API_GATEWAY",454,966,768],["heap",4096,"MIMALLOC","true","E_COMMERCE",374,2839,1024],["heap",8192,"POOLED","false","SOCKET_PROXY",831,2113,896],["heap",8192,"POOLED","false","API_GATEWAY",776,3093,1408],["heap",8192,"POOLED","false","E_COMMERCE",828,3994,1662],["heap",8192,"POOLED","true","SOCKET_PROXY",975,2095,896],["heap",8192,"POOLED","true","API_GATEWAY",950,3082,1408],["heap",8192,"POOLED","true","E_COMMERCE",1127,4000,1734],["heap",8192,"ADAPTIVE","false","SOCKET_PROXY",296,1011,779],["heap",8192,"ADAPTIVE","false","API_GATEWAY",347,2367,1228],["heap",8192,"ADAPTIVE","false","E_COMMERCE",317,3140,1565],["heap",8192,"ADAPTIVE","true","SOCKET_PROXY",417,1008,777],["heap",8192,"ADAPTIVE","true","API_GATEWAY",532,2348,1228],["heap",8192,"ADAPTIVE","true","E_COMMERCE",488,3122,1565],["heap",8192,"MIMALLOC","false","SOCKET_PROXY",535,1918,1024],["heap",8192,"MIMALLOC","false","API_GATEWAY",698,1928,1280],["heap",8192,"MIMALLOC","false","E_COMMERCE",508,3186,1664],["heap",8192,"MIMALLOC","true","SOCKET_PROXY",546,1910,1024],["heap",8192,"MIMALLOC","true","API_GATEWAY",706,1922,1280],["heap",8192,"MIMALLOC","true","E_COMMERCE",570,3198,1664],["heap",16384,"POOLED","false","SOCKET_PROXY",918,3154,1792],["heap",16384,"POOLED","false","API_GATEWAY",940,4478,2432],["heap",16384,"POOLED","false","E_COMMERCE",1094,5736,3054],["heap",16384,"POOLED","true","SOCKET_PROXY",1036,3123,1792],["heap",16384,"POOLED","true","API_GATEWAY",1110,4480,2432],["heap",16384,"POOLED","true","E_COMMERCE",1252,5697,3054],["heap",16384,"ADAPTIVE","false","SOCKET_PROXY",480,2373,1439],["heap",16384,"ADAPTIVE","false","API_GATEWAY",506,3364,2175],["heap",16384,"ADAPTIVE","false","E_COMMERCE",462,4038,2937],["heap",16384,"ADAPTIVE","true","SOCKET_PROXY",663,2372,1439],["heap",16384,"ADAPTIVE","true","API_GATEWAY",689,3360,2173],["heap",16384,"ADAPTIVE","true","E_COMMERCE",622,4035,2939],["heap",16384,"MIMALLOC","false","SOCKET_PROXY",720,2058,1792],["heap",16384,"MIMALLOC","false","API_GATEWAY",861,3320,2304],["heap",16384,"MIMALLOC","false","E_COMMERCE",801,4682,2944],["heap",16384,"MIMALLOC","true","SOCKET_PROXY",752,2616,1792],["heap",16384,"MIMALLOC","true","API_GATEWAY",943,3216,2304],["heap",16384,"MIMALLOC","true","E_COMMERCE",762,5141,2944],["heap",32768,"POOLED","false","SOCKET_PROXY",1053,4794,3200],["heap",32768,"POOLED","false","API_GATEWAY",1153,7226,4608],["heap",32768,"POOLED","false","E_COMMERCE",1237,9076,5738],["heap",32768,"POOLED","true","SOCKET_PROXY",1111,5637,3200],["heap",32768,"POOLED","true","API_GATEWAY",1254,7738,4608],["heap",32768,"POOLED","true","E_COMMERCE",1445,9162,5740],["heap",32768,"ADAPTIVE","false","SOCKET_PROXY",639,3372,2779],["heap",32768,"ADAPTIVE","false","API_GATEWAY",685,5020,4077],["heap",32768,"ADAPTIVE","false","E_COMMERCE",652,7543,5650],["heap",32768,"ADAPTIVE","true","SOCKET_PROXY",737,3369,2777],["heap",32768,"ADAPTIVE","true","API_GATEWAY",803,5110,4077],["heap",32768,"ADAPTIVE","true","E_COMMERCE",699,7615,5648],["heap",32768,"MIMALLOC","false","SOCKET_PROXY",924,5082,3328],["heap",32768,"MIMALLOC","false","API_GATEWAY",1057,4991,4096],["heap",32768,"MIMALLOC","false","E_COMMERCE",849,7682,5376],["heap",32768,"MIMALLOC","true","SOCKET_PROXY",942,5149,3328],["heap",32768,"MIMALLOC","true","API_GATEWAY",1149,4903,4096],["heap",32768,"MIMALLOC","true","E_COMMERCE",971,7773,5376],["heap",65536,"POOLED","false","SOCKET_PROXY",1709,9804,6272],["heap",65536,"POOLED","false","API_GATEWAY",2008,12824,8992],["heap",65536,"POOLED","false","E_COMMERCE",2722,16154,10988],["heap",65536,"POOLED","true","SOCKET_PROXY",1784,9892,6272],["heap",65536,"POOLED","true","API_GATEWAY",2242,12936,8836],["heap",65536,"POOLED","true","E_COMMERCE",3129,16094,10990],["heap",65536,"ADAPTIVE","false","SOCKET_PROXY",697,6664,5355],["heap",65536,"ADAPTIVE","false","API_GATEWAY",862,8584,7853],["heap",65536,"ADAPTIVE","false","E_COMMERCE",684,13207,10970],["heap",65536,"ADAPTIVE","true","SOCKET_PROXY",919,6726,5356],["heap",65536,"ADAPTIVE","true","API_GATEWAY",1006,8632,7857],["heap",65536,"ADAPTIVE","true","E_COMMERCE",814,12467,10965],["heap",65536,"MIMALLOC","false","SOCKET_PROXY",1068,7909,6400],["heap",65536,"MIMALLOC","false","API_GATEWAY",1315,9492,7808],["heap",65536,"MIMALLOC","false","E_COMMERCE",1007,12100,10368],["heap",65536,"MIMALLOC","true","SOCKET_PROXY",1112,8134,6400],["heap",65536,"MIMALLOC","true","API_GATEWAY",1398,10347,7808],["heap",65536,"MIMALLOC","true","E_COMMERCE",1146,12938,10368],["direct",128,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",218,186,120],["direct",128,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",205,190,236],["direct",128,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",255,1583,264],["direct",128,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",243,201,120],["direct",128,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",237,225,236],["direct",128,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",243,1612,264],["direct",1024,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",233,190,206],["direct",1024,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",261,192,332],["direct",1024,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",228,1588,420],["direct",1024,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",268,263,204],["direct",1024,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",302,348,332],["direct",1024,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",273,1690,420],["direct",4096,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",255,202,448],["direct",4096,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",290,206,700],["direct",4096,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",268,1604,880],["direct",4096,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",325,388,448],["direct",4096,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",386,606,700],["direct",4096,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",345,1965,880],["direct",8192,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",276,221,784],["direct",8192,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",325,223,1212],["direct",8192,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",292,1624,1574],["direct",8192,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",441,544,784],["direct",8192,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",517,917,1212],["direct",8192,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",452,2053,1572],["direct",16384,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",423,245,1448],["direct",16384,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",479,250,2142],["direct",16384,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",420,1646,2924],["direct",16384,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",597,846,1444],["direct",16384,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",667,1648,2146],["direct",16384,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",604,2372,2920],["direct",32768,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",547,296,2762],["direct",32768,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",622,306,4022],["direct",32768,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",540,1702,5582],["direct",32768,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",694,1454,2764],["direct",32768,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",791,2820,4020],["direct",32768,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",675,3064,5582],["direct",65536,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",679,404,5346],["direct",65536,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",839,424,7850],["direct",65536,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",657,1818,10812],["direct",65536,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",852,2667,5342],["direct",65536,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",1063,5334,7852],["direct",65536,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",819,4334,10810]];
+
+const BUFS=[128,1024,4096,8192,16384,32768,65536];
+const AL=["POOLED","ADAPTIVE","ADAPTIVE-MMAP-OFF","MIMALLOC"];
+const CLR={"POOLED":"#4a7fcb","ADAPTIVE":"#2aaa6e","ADAPTIVE-MMAP-OFF":"#2aaa6e","MIMALLOC":"#d05a2a"};
+let st={method:"direct",pattern:"SOCKET_PROXY",rw:"true"};
+let cL,cR,cNew;
+
+function rows(){return D.filter(r=>r[0]===st.method&&r[3]===st.rw&&r[4]===st.pattern);}
+function ds(col){
+  return AL.map(a=>{
+    const sub=rows().filter(r=>r[2]===a);
+    return{label:a,data:BUFS.map(b=>{const r=sub.find(x=>x[1]===b);return r?r[col]:null;}),
+      borderColor:CLR[a],backgroundColor:CLR[a]+"22",borderWidth:2,borderDash:a==="ADAPTIVE-MMAP-OFF"?[6,4]:[],
+    };
+  });
+}
+function opts(ytitle){
+  return{responsive:true,maintainAspectRatio:false,animation:{duration:300},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y!=null?Math.round(c.parsed.y):"n/a"}`}}},
+    scales:{x:{grid:{color:"rgba(128,128,128,.12)"},ticks:{font:{size:11}},title:{display:true,text:"Live buffers",font:{size:11}}},
+            y:{grid:{color:"rgba(128,128,128,.12)"},ticks:{font:{size:11}},title:{display:true,text:ytitle,font:{size:11}}}}};
+}
+function draw(){
+  const lData={labels:BUFS.map(String),datasets:ds(5)};
+  const rData={labels:BUFS.map(String),datasets:ds(6)};
+  const nData={labels:BUFS.map(String),datasets:ds(7)};
+  if(cL){cL.data=lData;cL.update();}
+  if(cR){cR.data=rData;cR.update();}
+  if(cNew){cNew.data=nData;cNew.update();} 
+}
+
+document.querySelectorAll(".pg").forEach(g=>{
+  g.addEventListener("click",e=>{
+    const b=e.target.closest(".pill");if(!b)return;
+    g.querySelectorAll(".pill").forEach(p=>p.classList.remove("on"));
+    b.classList.add("on");
+    const id=g.id;
+    if(id==="gm")st.method=b.dataset.v;
+    if(id==="gp")st.pattern=b.dataset.v;
+    if(id==="gr")st.rw=b.dataset.v;
+    draw();
+  });
+});
+
+function loadChartJS(cb){
+  const CDNS=[
+    "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+  ];
+  let done=false;
+  CDNS.forEach(url=>{
+    const s=document.createElement("script");
+    s.src=url;
+    s.onload=()=>{ if(!done){ done=true; cb(); } };
+    document.head.appendChild(s);
+  });
+}
+loadChartJS(function(){
+  cL=new Chart(document.getElementById("cL"),{type:"line",data:{labels:BUFS.map(String),datasets:ds(5)},options:opts("ns/op")});
+  cR=new Chart(document.getElementById("cR"),{type:"line",data:{labels:BUFS.map(String),datasets:ds(6)},options:opts("MiB")});
+  cNew = new Chart(document.getElementById("cNew"), {
+      type: "line",
+      data: { labels: BUFS.map(String), datasets: ds(7) },
+      options: opts("MiB")
+    });
+  parent.postMessage("charts-ready", "*");
+});
+
+</script>
+</body></html>' style="display:none" frameborder="0"></iframe>
+  <iframe id="f3" data-srcdoc='<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:0 12px;font-family:system-ui,sans-serif}</style></head><body>
+<style>
+.ctrl-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1rem;align-items:flex-end}
+
+.pg{display:flex;border:0.5px solid var(--color-border-secondary, #d1d5db);border-radius:20px;overflow:hidden}
+.pill{padding:5px 14px;font-size:13px;cursor:pointer;background:transparent;border:none;color:var(--color-text-secondary, #4b5563)}
+
+.pill.on{background:var(--color-text-primary, #111827);color:var(--color-background-primary, #ffffff)}
+.slabel{font-size:11px;font-weight:500;color:var(--color-text-tertiary, #6b7280);text-transform:uppercase;margin-bottom:5px}
+.chart-title{font-size:13px;font-weight:500;color:var(--color-text-secondary, #4b5563);margin:1rem 0 4px}
+.cw{position:relative;width:100%;height:260px}
+.leg{display:flex;gap:16px;font-size:12px;color:var(--color-text-secondary, #4b5563);margin-bottom:.5rem}
+.leg span{display:flex;align-items:center;gap:5px}
+.lsq{display:inline-block;width:20px;height:3px;border-radius:2px}
+.warn{background:var(--color-background-warning, #fef08a);border:0.5px solid var(--color-border-warning, #facc15);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--color-text-warning, #854d0e);margin-bottom:1rem;display:none}
+</style>
+
+<div style="padding:18px 0 0">
+<h4 class="sr-only">32 platform threads on X86 with 16 cores</h4>
+<hr>
+<div class="ctrl-row">
+  <div><div class="slabel">allocation</div>
+    <div class="pg" id="gm">
+      <button class="pill on" data-v="direct">direct</button>
+      <button class="pill" data-v="heap">heap</button>
+    </div></div>
+  <div><div class="slabel">pattern</div>
+    <div class="pg" id="gp">
+      <button class="pill on" data-v="SOCKET_PROXY">SOCKET_PROXY</button>
+      <button class="pill" data-v="API_GATEWAY">API_GATEWAY</button>
+      <button class="pill" data-v="E_COMMERCE">E_COMMERCE</button>
+    </div></div>
+  <div><div class="slabel">read/write</div>
+    <div class="pg" id="gr">
+      <button class="pill on" data-v="true">on</button>
+      <button class="pill" data-v="false">off</button>
+    </div></div>
+</div>
+
+<div class="leg">
+  <span><span class="lsq" style="background:#4a7fcb"></span>POOLED</span>
+  <span><span class="lsq" style="background:#2aaa6e"></span>ADAPTIVE (page store, mmap)</span>
+  <span><span class="lsq" style="background:repeating-linear-gradient(90deg,#2aaa6e 0 6px,transparent 6px 10px)"></span>ADAPTIVE (page store, mmap off, direct only)</span>
+  <span><span class="lsq" style="background:#d05a2a"></span>MIMALLOC</span>
+</div>
+
+<div class="chart-title">Latency (ns/op)&nbsp;&nbsp;<span style="font-weight:400;color:var(--color-text-tertiary)">the lower the better</span></div>
+<div class="cw"><canvas id="cL" role="img" aria-label="Allocation latency line chart"></canvas></div>
+
+<div class="chart-title">RSS (MiB)</div>
+<div class="cw"><canvas id="cR" role="img" aria-label="RSS memory line chart"></canvas></div>
+
+<div class="chart-title">allocator used memory (MiB)&nbsp;&nbsp;<span style="font-weight:400;color:var(--color-text-tertiary)">allocator.usedDirectMemory() or allocator.usedHeapMemory()</span></div>
+<div class="cw"><canvas id="cNew" role="img" aria-label="UsedMemory chart"></canvas></div>
+
+</div>
+
+<script>
+const D=[["direct",128,"POOLED","false","SOCKET_PROXY",518,14866,128],["direct",128,"POOLED","false","API_GATEWAY",556,14882,128],["direct",128,"POOLED","false","E_COMMERCE",571,15490,128],["direct",128,"POOLED","true","SOCKET_PROXY",520,14916,128],["direct",128,"POOLED","true","API_GATEWAY",604,14924,128],["direct",128,"POOLED","true","E_COMMERCE",609,15550,128],["direct",128,"ADAPTIVE","false","SOCKET_PROXY",230,198,126],["direct",128,"ADAPTIVE","false","API_GATEWAY",234,200,238],["direct",128,"ADAPTIVE","false","E_COMMERCE",259,1594,255],["direct",128,"ADAPTIVE","true","SOCKET_PROXY",272,218,129],["direct",128,"ADAPTIVE","true","API_GATEWAY",290,242,236],["direct",128,"ADAPTIVE","true","E_COMMERCE",289,1622,255],["direct",128,"MIMALLOC","false","SOCKET_PROXY",270,271,128],["direct",128,"MIMALLOC","false","API_GATEWAY",314,458,384],["direct",128,"MIMALLOC","false","E_COMMERCE",299,1843,382],["direct",128,"MIMALLOC","true","SOCKET_PROXY",291,276,128],["direct",128,"MIMALLOC","true","API_GATEWAY",344,463,382],["direct",128,"MIMALLOC","true","E_COMMERCE",330,1830,384],["direct",1024,"POOLED","false","SOCKET_PROXY",644,14887,256],["direct",1024,"POOLED","false","API_GATEWAY",590,14883,256],["direct",1024,"POOLED","false","E_COMMERCE",671,15494,384],["direct",1024,"POOLED","true","SOCKET_PROXY",660,15012,256],["direct",1024,"POOLED","true","API_GATEWAY",642,15070,256],["direct",1024,"POOLED","true","E_COMMERCE",714,15732,384],["direct",1024,"ADAPTIVE","false","SOCKET_PROXY",276,206,204],["direct",1024,"ADAPTIVE","false","API_GATEWAY",297,209,344],["direct",1024,"ADAPTIVE","false","E_COMMERCE",284,1602,419],["direct",1024,"ADAPTIVE","true","SOCKET_PROXY",309,280,204],["direct",1024,"ADAPTIVE","true","API_GATEWAY",350,376,342],["direct",1024,"ADAPTIVE","true","E_COMMERCE",345,1706,426],["direct",1024,"MIMALLOC","false","SOCKET_PROXY",305,394,264],["direct",1024,"MIMALLOC","false","API_GATEWAY",378,509,384],["direct",1024,"MIMALLOC","false","E_COMMERCE",328,2077,526],["direct",1024,"MIMALLOC","true","SOCKET_PROXY",341,405,272],["direct",1024,"MIMALLOC","true","API_GATEWAY",396,517,390],["direct",1024,"MIMALLOC","true","E_COMMERCE",369,2075,528],["direct",4096,"POOLED","false","SOCKET_PROXY",673,14914,512],["direct",4096,"POOLED","false","API_GATEWAY",728,14915,640],["direct",4096,"POOLED","false","E_COMMERCE",756,15498,810],["direct",4096,"POOLED","true","SOCKET_PROXY",701,15416,512],["direct",4096,"POOLED","true","API_GATEWAY",908,15545,640],["direct",4096,"POOLED","true","E_COMMERCE",956,16256,888],["direct",4096,"ADAPTIVE","false","SOCKET_PROXY",305,214,450],["direct",4096,"ADAPTIVE","false","API_GATEWAY",356,218,695],["direct",4096,"ADAPTIVE","false","E_COMMERCE",345,1612,876],["direct",4096,"ADAPTIVE","true","SOCKET_PROXY",373,396,450],["direct",4096,"ADAPTIVE","true","API_GATEWAY",449,678,712],["direct",4096,"ADAPTIVE","true","E_COMMERCE",396,1972,878],["direct",4096,"MIMALLOC","false","SOCKET_PROXY",419,466,608],["direct",4096,"MIMALLOC","false","API_GATEWAY",473,858,788],["direct",4096,"MIMALLOC","false","E_COMMERCE",386,2216,1032],["direct",4096,"MIMALLOC","true","SOCKET_PROXY",421,485,606],["direct",4096,"MIMALLOC","true","API_GATEWAY",474,854,786],["direct",4096,"MIMALLOC","true","E_COMMERCE",425,2206,1026],["direct",8192,"POOLED","false","SOCKET_PROXY",691,14940,930],["direct",8192,"POOLED","false","API_GATEWAY",718,14948,1230],["direct",8192,"POOLED","false","E_COMMERCE",828,15521,1488],["direct",8192,"POOLED","true","SOCKET_PROXY",982,15828,902],["direct",8192,"POOLED","true","API_GATEWAY",966,16129,1190],["direct",8192,"POOLED","true","E_COMMERCE",997,16951,1424],["direct",8192,"ADAPTIVE","false","SOCKET_PROXY",341,230,796],["direct",8192,"ADAPTIVE","false","API_GATEWAY",377,234,1212],["direct",8192,"ADAPTIVE","false","E_COMMERCE",361,1628,1568],["direct",8192,"ADAPTIVE","true","SOCKET_PROXY",501,550,782],["direct",8192,"ADAPTIVE","true","API_GATEWAY",572,938,1209],["direct",8192,"ADAPTIVE","true","E_COMMERCE",527,2047,1568],["direct",8192,"MIMALLOC","false","SOCKET_PROXY",567,624,1030],["direct",8192,"MIMALLOC","false","API_GATEWAY",718,1310,1342],["direct",8192,"MIMALLOC","false","E_COMMERCE",566,2304,1698],["direct",8192,"MIMALLOC","true","SOCKET_PROXY",625,644,1076],["direct",8192,"MIMALLOC","true","API_GATEWAY",746,1324,1356],["direct",8192,"MIMALLOC","true","E_COMMERCE",597,2302,1684],["direct",16384,"POOLED","false","SOCKET_PROXY",739,14986,1764],["direct",16384,"POOLED","false","API_GATEWAY",841,14970,2304],["direct",16384,"POOLED","false","E_COMMERCE",825,15558,2816],["direct",16384,"POOLED","true","SOCKET_PROXY",1024,16648,1790],["direct",16384,"POOLED","true","API_GATEWAY",1101,17237,2304],["direct",16384,"POOLED","true","E_COMMERCE",1156,18370,2816],["direct",16384,"ADAPTIVE","false","SOCKET_PROXY",470,250,1454],["direct",16384,"ADAPTIVE","false","API_GATEWAY",528,256,2144],["direct",16384,"ADAPTIVE","false","E_COMMERCE",479,1647,2926],["direct",16384,"ADAPTIVE","true","SOCKET_PROXY",637,863,1444],["direct",16384,"ADAPTIVE","true","API_GATEWAY",697,1633,2142],["direct",16384,"ADAPTIVE","true","E_COMMERCE",636,2368,2923],["direct",16384,"MIMALLOC","false","SOCKET_PROXY",800,984,1826],["direct",16384,"MIMALLOC","false","API_GATEWAY",947,1992,2354],["direct",16384,"MIMALLOC","false","E_COMMERCE",771,2556,2964],["direct",16384,"MIMALLOC","true","SOCKET_PROXY",802,972,1810],["direct",16384,"MIMALLOC","true","API_GATEWAY",989,1952,2320],["direct",16384,"MIMALLOC","true","E_COMMERCE",851,2562,2962],["direct",32768,"POOLED","false","SOCKET_PROXY",750,15052,3584],["direct",32768,"POOLED","false","API_GATEWAY",862,15070,4352],["direct",32768,"POOLED","false","E_COMMERCE",932,15643,5376],["direct",32768,"POOLED","true","SOCKET_PROXY",1044,17934,3584],["direct",32768,"POOLED","true","API_GATEWAY",1147,19402,4352],["direct",32768,"POOLED","true","E_COMMERCE",1237,20756,5256],["direct",32768,"ADAPTIVE","false","SOCKET_PROXY",611,306,2783],["direct",32768,"ADAPTIVE","false","API_GATEWAY",688,314,4075],["direct",32768,"ADAPTIVE","false","E_COMMERCE",610,1702,5561],["direct",32768,"ADAPTIVE","true","SOCKET_PROXY",725,1470,2764],["direct",32768,"ADAPTIVE","true","API_GATEWAY",834,2920,4078],["direct",32768,"ADAPTIVE","true","E_COMMERCE",742,3060,5562],["direct",32768,"MIMALLOC","false","SOCKET_PROXY",939,1491,3340],["direct",32768,"MIMALLOC","false","API_GATEWAY",1134,3141,4146],["direct",32768,"MIMALLOC","false","E_COMMERCE",915,3284,5420],["direct",32768,"MIMALLOC","true","SOCKET_PROXY",984,1551,3426],["direct",32768,"MIMALLOC","true","API_GATEWAY",1172,3207,4232],["direct",32768,"MIMALLOC","true","E_COMMERCE",1003,3258,5384],["direct",65536,"POOLED","false","SOCKET_PROXY",771,15354,6912],["direct",65536,"POOLED","false","API_GATEWAY",942,15400,8704],["direct",65536,"POOLED","false","E_COMMERCE",1108,16003,10752],["direct",65536,"POOLED","true","SOCKET_PROXY",1142,19402,6912],["direct",65536,"POOLED","true","API_GATEWAY",1243,23684,8220],["direct",65536,"POOLED","true","E_COMMERCE",1465,24274,10752],["direct",65536,"ADAPTIVE","false","SOCKET_PROXY",672,424,5712],["direct",65536,"ADAPTIVE","false","API_GATEWAY",842,422,7930],["direct",65536,"ADAPTIVE","false","E_COMMERCE",672,1798,10804],["direct",65536,"ADAPTIVE","true","SOCKET_PROXY",885,2689,5388],["direct",65536,"ADAPTIVE","true","API_GATEWAY",1049,5374,7886],["direct",65536,"ADAPTIVE","true","E_COMMERCE",828,4336,10804],["direct",65536,"MIMALLOC","false","SOCKET_PROXY",1068,2879,6724],["direct",65536,"MIMALLOC","false","API_GATEWAY",1317,5778,8056],["direct",65536,"MIMALLOC","false","E_COMMERCE",1069,4677,10548],["direct",65536,"MIMALLOC","true","SOCKET_PROXY",1188,2740,6426],["direct",65536,"MIMALLOC","true","API_GATEWAY",1379,5816,8068],["direct",65536,"MIMALLOC","true","E_COMMERCE",1205,4497,10324],["heap",128,"POOLED","false","SOCKET_PROXY",494,15118,128],["heap",128,"POOLED","false","API_GATEWAY",562,15116,128],["heap",128,"POOLED","false","E_COMMERCE",631,15702,128],["heap",128,"POOLED","true","SOCKET_PROXY",594,15130,128],["heap",128,"POOLED","true","API_GATEWAY",575,15114,128],["heap",128,"POOLED","true","E_COMMERCE",693,15656,128],["heap",128,"ADAPTIVE","false","SOCKET_PROXY",246,324,129],["heap",128,"ADAPTIVE","false","API_GATEWAY",322,488,285],["heap",128,"ADAPTIVE","false","E_COMMERCE",272,1983,267],["heap",128,"ADAPTIVE","true","SOCKET_PROXY",264,333,133],["heap",128,"ADAPTIVE","true","API_GATEWAY",294,484,283],["heap",128,"ADAPTIVE","true","E_COMMERCE",330,2014,267],["heap",128,"MIMALLOC","false","SOCKET_PROXY",251,320,130],["heap",128,"MIMALLOC","false","API_GATEWAY",298,571,384],["heap",128,"MIMALLOC","false","E_COMMERCE",354,1974,382],["heap",128,"MIMALLOC","true","SOCKET_PROXY",265,326,128],["heap",128,"MIMALLOC","true","API_GATEWAY",295,574,384],["heap",128,"MIMALLOC","true","E_COMMERCE",420,1948,382],["heap",1024,"POOLED","false","SOCKET_PROXY",597,15269,256],["heap",1024,"POOLED","false","API_GATEWAY",558,15328,256],["heap",1024,"POOLED","false","E_COMMERCE",711,15988,384],["heap",1024,"POOLED","true","SOCKET_PROXY",589,15268,256],["heap",1024,"POOLED","true","API_GATEWAY",679,15332,256],["heap",1024,"POOLED","true","E_COMMERCE",720,16046,384],["heap",1024,"ADAPTIVE","false","SOCKET_PROXY",290,394,198],["heap",1024,"ADAPTIVE","false","API_GATEWAY",336,592,391],["heap",1024,"ADAPTIVE","false","E_COMMERCE",334,2061,407],["heap",1024,"ADAPTIVE","true","SOCKET_PROXY",314,396,198],["heap",1024,"ADAPTIVE","true","API_GATEWAY",360,588,385],["heap",1024,"ADAPTIVE","true","E_COMMERCE",405,2038,405],["heap",1024,"MIMALLOC","false","SOCKET_PROXY",287,502,266],["heap",1024,"MIMALLOC","false","API_GATEWAY",375,594,386],["heap",1024,"MIMALLOC","false","E_COMMERCE",327,1930,540],["heap",1024,"MIMALLOC","true","SOCKET_PROXY",316,498,264],["heap",1024,"MIMALLOC","true","API_GATEWAY",365,616,388],["heap",1024,"MIMALLOC","true","E_COMMERCE",394,1964,514],["heap",4096,"POOLED","false","SOCKET_PROXY",601,15629,512],["heap",4096,"POOLED","false","API_GATEWAY",754,15726,640],["heap",4096,"POOLED","false","E_COMMERCE",731,16669,836],["heap",4096,"POOLED","true","SOCKET_PROXY",829,15597,512],["heap",4096,"POOLED","true","API_GATEWAY",927,15740,640],["heap",4096,"POOLED","true","E_COMMERCE",880,16654,880],["heap",4096,"ADAPTIVE","false","SOCKET_PROXY",333,664,452],["heap",4096,"ADAPTIVE","false","API_GATEWAY",383,1054,828],["heap",4096,"ADAPTIVE","false","E_COMMERCE",396,2026,938],["heap",4096,"ADAPTIVE","true","SOCKET_PROXY",407,695,468],["heap",4096,"ADAPTIVE","true","API_GATEWAY",487,1058,830],["heap",4096,"ADAPTIVE","true","E_COMMERCE",424,2040,907],["heap",4096,"MIMALLOC","false","SOCKET_PROXY",396,889,588],["heap",4096,"MIMALLOC","false","API_GATEWAY",571,1436,808],["heap",4096,"MIMALLOC","false","E_COMMERCE",483,2791,1042],["heap",4096,"MIMALLOC","true","SOCKET_PROXY",426,888,574],["heap",4096,"MIMALLOC","true","API_GATEWAY",573,1436,812],["heap",4096,"MIMALLOC","true","E_COMMERCE",438,2782,1026],["heap",8192,"POOLED","false","SOCKET_PROXY",700,16238,926],["heap",8192,"POOLED","false","API_GATEWAY",842,16491,1220],["heap",8192,"POOLED","false","E_COMMERCE",951,17464,1420],["heap",8192,"POOLED","true","SOCKET_PROXY",870,16260,920],["heap",8192,"POOLED","true","API_GATEWAY",1001,16487,1174],["heap",8192,"POOLED","true","E_COMMERCE",966,17402,1474],["heap",8192,"ADAPTIVE","false","SOCKET_PROXY",365,1126,872],["heap",8192,"ADAPTIVE","false","API_GATEWAY",410,2386,1315],["heap",8192,"ADAPTIVE","false","E_COMMERCE",394,3126,1574],["heap",8192,"ADAPTIVE","true","SOCKET_PROXY",495,1092,846],["heap",8192,"ADAPTIVE","true","API_GATEWAY",606,2382,1323],["heap",8192,"ADAPTIVE","true","E_COMMERCE",580,3046,1594],["heap",8192,"MIMALLOC","false","SOCKET_PROXY",660,1938,1050],["heap",8192,"MIMALLOC","false","API_GATEWAY",808,1949,1318],["heap",8192,"MIMALLOC","false","E_COMMERCE",590,3184,1704],["heap",8192,"MIMALLOC","true","SOCKET_PROXY",779,1936,1036],["heap",8192,"MIMALLOC","true","API_GATEWAY",814,1932,1318],["heap",8192,"MIMALLOC","true","E_COMMERCE",641,3617,1666],["heap",16384,"POOLED","false","SOCKET_PROXY",724,17166,1792],["heap",16384,"POOLED","false","API_GATEWAY",829,17671,2246],["heap",16384,"POOLED","false","E_COMMERCE",843,19022,2744],["heap",16384,"POOLED","true","SOCKET_PROXY",968,17060,1792],["heap",16384,"POOLED","true","API_GATEWAY",1041,17716,2254],["heap",16384,"POOLED","true","E_COMMERCE",1100,19058,2816],["heap",16384,"ADAPTIVE","false","SOCKET_PROXY",515,2400,1541],["heap",16384,"ADAPTIVE","false","API_GATEWAY",558,3353,2204],["heap",16384,"ADAPTIVE","false","E_COMMERCE",542,4002,2974],["heap",16384,"ADAPTIVE","true","SOCKET_PROXY",702,2390,1484],["heap",16384,"ADAPTIVE","true","API_GATEWAY",805,3362,2194],["heap",16384,"ADAPTIVE","true","E_COMMERCE",726,4000,2984],["heap",16384,"MIMALLOC","false","SOCKET_PROXY",892,2966,1796],["heap",16384,"MIMALLOC","false","API_GATEWAY",1052,3056,2372],["heap",16384,"MIMALLOC","false","E_COMMERCE",869,5089,2962],["heap",16384,"MIMALLOC","true","SOCKET_PROXY",868,3011,1792],["heap",16384,"MIMALLOC","true","API_GATEWAY",1229,3041,2250],["heap",16384,"MIMALLOC","true","E_COMMERCE",906,4677,2958],["heap",32768,"POOLED","false","SOCKET_PROXY",783,19226,3584],["heap",32768,"POOLED","false","API_GATEWAY",923,20056,4178],["heap",32768,"POOLED","false","E_COMMERCE",956,21052,5376],["heap",32768,"POOLED","true","SOCKET_PROXY",987,19259,3584],["heap",32768,"POOLED","true","API_GATEWAY",1155,20267,4352],["heap",32768,"POOLED","true","E_COMMERCE",1208,21045,5376],["heap",32768,"ADAPTIVE","false","SOCKET_PROXY",681,3381,2876],["heap",32768,"ADAPTIVE","false","API_GATEWAY",743,4817,4314],["heap",32768,"ADAPTIVE","false","E_COMMERCE",683,7304,5715],["heap",32768,"ADAPTIVE","true","SOCKET_PROXY",853,3381,2868],["heap",32768,"ADAPTIVE","true","API_GATEWAY",859,4802,4276],["heap",32768,"ADAPTIVE","true","E_COMMERCE",818,7470,5880],["heap",32768,"MIMALLOC","false","SOCKET_PROXY",1081,4622,3436],["heap",32768,"MIMALLOC","false","API_GATEWAY",1251,5776,4202],["heap",32768,"MIMALLOC","false","E_COMMERCE",1062,7158,5416],["heap",32768,"MIMALLOC","true","SOCKET_PROXY",1050,4430,3514],["heap",32768,"MIMALLOC","true","API_GATEWAY",1249,5949,4390],["heap",32768,"MIMALLOC","true","E_COMMERCE",1112,7142,5382],["heap",65536,"POOLED","false","SOCKET_PROXY",929,21911,6912],["heap",65536,"POOLED","false","API_GATEWAY",1154,22507,8704],["heap",65536,"POOLED","false","E_COMMERCE",1357,21527,10752],["heap",65536,"POOLED","true","SOCKET_PROXY",1214,21474,6912],["heap",65536,"POOLED","true","API_GATEWAY",1290,22284,8704],["heap",65536,"POOLED","true","E_COMMERCE",1638,21448,10752],["heap",65536,"ADAPTIVE","false","SOCKET_PROXY",768,6705,5579],["heap",65536,"ADAPTIVE","false","API_GATEWAY",828,10757,8223],["heap",65536,"ADAPTIVE","false","E_COMMERCE",720,12773,11164],["heap",65536,"ADAPTIVE","true","SOCKET_PROXY",848,6666,5556],["heap",65536,"ADAPTIVE","true","API_GATEWAY",1063,10700,8197],["heap",65536,"ADAPTIVE","true","E_COMMERCE",878,13492,11174],["heap",65536,"MIMALLOC","false","SOCKET_PROXY",1231,7806,6564],["heap",65536,"MIMALLOC","false","API_GATEWAY",1456,10132,8006],["heap",65536,"MIMALLOC","false","E_COMMERCE",1170,12144,10296],["heap",65536,"MIMALLOC","true","SOCKET_PROXY",1276,7897,6650],["heap",65536,"MIMALLOC","true","API_GATEWAY",1562,10135,7918],["heap",65536,"MIMALLOC","true","E_COMMERCE",1222,12304,10302],["direct",128,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",228,194,132],["direct",128,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",276,198,246],["direct",128,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",276,1590,264],["direct",128,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",273,213,136],["direct",128,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",286,240,240],["direct",128,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",312,1620,264],["direct",1024,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",265,198,208],["direct",1024,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",316,203,358],["direct",1024,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",287,1591,420],["direct",1024,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",331,268,208],["direct",1024,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",368,358,340],["direct",1024,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",347,1690,420],["direct",4096,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",290,217,488],["direct",4096,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",360,210,714],["direct",4096,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",330,1609,884],["direct",4096,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",389,390,458],["direct",4096,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",451,634,706],["direct",4096,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",413,1969,882],["direct",8192,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",344,218,784],["direct",8192,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",387,232,1252],["direct",8192,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",363,1618,1576],["direct",8192,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",512,558,798],["direct",8192,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",602,948,1222],["direct",8192,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",534,2060,1582],["direct",16384,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",477,252,1478],["direct",16384,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",543,256,2184],["direct",16384,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",497,1650,2928],["direct",16384,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",639,852,1446],["direct",16384,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",719,1624,2150],["direct",16384,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",664,2381,2936],["direct",32768,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",592,308,2814],["direct",32768,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",677,325,4158],["direct",32768,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",612,1710,5600],["direct",32768,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",756,1467,2778],["direct",32768,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",884,2870,4032],["direct",32768,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",741,3083,5584],["direct",65536,"ADAPTIVE-MMAP-OFF","false","SOCKET_PROXY",707,422,5468],["direct",65536,"ADAPTIVE-MMAP-OFF","false","API_GATEWAY",888,430,7922],["direct",65536,"ADAPTIVE-MMAP-OFF","false","E_COMMERCE",688,1834,10890],["direct",65536,"ADAPTIVE-MMAP-OFF","true","SOCKET_PROXY",900,2675,5354],["direct",65536,"ADAPTIVE-MMAP-OFF","true","API_GATEWAY",1120,5377,7898],["direct",65536,"ADAPTIVE-MMAP-OFF","true","E_COMMERCE",840,4360,10812]];
+
+const BUFS=[128,1024,4096,8192,16384,32768,65536];
+const AL=["POOLED","ADAPTIVE","ADAPTIVE-MMAP-OFF","MIMALLOC"];
+const CLR={"POOLED":"#4a7fcb","ADAPTIVE":"#2aaa6e","ADAPTIVE-MMAP-OFF":"#2aaa6e","MIMALLOC":"#d05a2a"};
+let st={method:"direct",pattern:"SOCKET_PROXY",rw:"true"};
+let cL,cR,cNew;
+
+function rows(){return D.filter(r=>r[0]===st.method&&r[3]===st.rw&&r[4]===st.pattern);}
+function ds(col){
+  return AL.map(a=>{
+    const sub=rows().filter(r=>r[2]===a);
+    return{label:a,data:BUFS.map(b=>{const r=sub.find(x=>x[1]===b);return r?r[col]:null;}),
+      borderColor:CLR[a],backgroundColor:CLR[a]+"22",borderWidth:2,borderDash:a==="ADAPTIVE-MMAP-OFF"?[6,4]:[],
+    };
+  });
+}
+function opts(ytitle){
+  return{responsive:true,maintainAspectRatio:false,animation:{duration:300},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y!=null?Math.round(c.parsed.y):"n/a"}`}}},
+    scales:{x:{grid:{color:"rgba(128,128,128,.12)"},ticks:{font:{size:11}},title:{display:true,text:"Live buffers",font:{size:11}}},
+            y:{grid:{color:"rgba(128,128,128,.12)"},ticks:{font:{size:11}},title:{display:true,text:ytitle,font:{size:11}}}}};
+}
+function draw(){
+  const lData={labels:BUFS.map(String),datasets:ds(5)};
+  const rData={labels:BUFS.map(String),datasets:ds(6)};
+  const nData={labels:BUFS.map(String),datasets:ds(7)};
+  if(cL){cL.data=lData;cL.update();}
+  if(cR){cR.data=rData;cR.update();}
+  if(cNew){cNew.data=nData;cNew.update();} 
+}
+
+document.querySelectorAll(".pg").forEach(g=>{
+  g.addEventListener("click",e=>{
+    const b=e.target.closest(".pill");if(!b)return;
+    g.querySelectorAll(".pill").forEach(p=>p.classList.remove("on"));
+    b.classList.add("on");
+    const id=g.id;
+    if(id==="gm")st.method=b.dataset.v;
+    if(id==="gp")st.pattern=b.dataset.v;
+    if(id==="gr")st.rw=b.dataset.v;
+    draw();
+  });
+});
+
+function loadChartJS(cb){
+  const CDNS=[
+    "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+  ];
+  let done=false;
+  CDNS.forEach(url=>{
+    const s=document.createElement("script");
+    s.src=url;
+    s.onload=()=>{ if(!done){ done=true; cb(); } };
+    document.head.appendChild(s);
+  });
+}
+loadChartJS(function(){
+  cL=new Chart(document.getElementById("cL"),{type:"line",data:{labels:BUFS.map(String),datasets:ds(5)},options:opts("ns/op")});
+  cR=new Chart(document.getElementById("cR"),{type:"line",data:{labels:BUFS.map(String),datasets:ds(6)},options:opts("MiB")});
+  cNew = new Chart(document.getElementById("cNew"), {
+      type: "line",
+      data: { labels: BUFS.map(String), datasets: ds(7) },
+      options: opts("MiB")
+    });
+  if (window.parent) parent.postMessage("charts-ready", "*");
+});
+</script>
+</body></html>' style="display:none" frameborder="0"></iframe>
+</main>
+
+<script>
+const btns = document.querySelectorAll(".nav-btn");
+const frames = document.querySelectorAll("iframe");
+
+function show(btn, i) {
+  btns.forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  frames.forEach((f, j) => {
+    if (j === i) {
+      if (!f.srcdoc) f.srcdoc = f.dataset.srcdoc;
+      f.style.display = "block";
+    } else {
+      f.style.display = "none";
+    }
+  });
+}
+
+window.addEventListener('message', e => {
+  if (e.data === 'charts-ready') {
+    const el = document.getElementById('loading');
+    el.style.opacity = '0';
+    el.style.transition = 'opacity .3s';
+    setTimeout(() => el.remove(), 300);
+  }
+});
+
+// click first button on laod.
+btns[0].click();
+</script>
+</body>
+</html>
